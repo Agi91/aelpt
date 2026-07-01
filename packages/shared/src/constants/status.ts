@@ -1,0 +1,8 @@
+export const TOPIC_STATUS = {
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  REVISION_REQUIRED: 'REVISION_REQUIRED',
+} as const;
+
+export type TopicStatus = (typeof TOPIC_STATUS)[keyof typeof TOPIC_STATUS];

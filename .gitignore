@@ -41,6 +41,7 @@ apps/web/.vercel/
 # ----------------------------------------
 apps/server/dist/
 apps/server/build/
+packages/shared/dist/
 
 # ----------------------------------------
 # TYPESCRIPT
