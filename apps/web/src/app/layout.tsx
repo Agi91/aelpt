@@ -1,23 +1,16 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import { AuthProvider } from '@/providers/AuthProvider';
+import { Toaster } from '@/components/ui/sonner';
 
 // --------------------------------------------------------
 // CONSTITUTION SECTION 24.2 — Typography
 // Primary body font: Inter (clean, legible, professional)
 // Monospace font: JetBrains Mono (code blocks, academic data)
+// Note: We load these fonts via runtime HTML link tags rather
+// than build-time next/font imports to bypass server-side
+// network request blocks during local builds.
 // --------------------------------------------------------
-const inter = Inter({
-  variable: '--font-sans',
-  subsets: ['latin'],
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: '--font-mono',
-  subsets: ['latin'],
-  display: 'swap',
-});
 
 // --------------------------------------------------------
 // Root metadata — will be updated per-page in later phases
@@ -52,10 +45,31 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className="font-sans antialiased"
+        style={
+          {
+            '--font-sans': 'Inter, system-ui, -apple-system, sans-serif',
+            '--font-mono': '"JetBrains Mono", monospace',
+          } as React.CSSProperties
+        }
       >
-        {children}
+        <AuthProvider>
+          {children}
+          <Toaster position="top-right" closeButton richColors />
+        </AuthProvider>
       </body>
     </html>
   );
