@@ -38,6 +38,7 @@ export default function SemestersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSemester, setEditingSemester] = useState<Semester | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState('NEWEST');
 
   const handleOpenCreate = () => {
     setEditingSemester(null);
@@ -77,10 +78,19 @@ export default function SemestersPage() {
     }
   };
 
-  // Filter semesters
-  const filteredSemesters = semesters.filter((sem) =>
-    sem.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter and sort semesters
+  const filteredSemesters = semesters
+    .filter((sem) => sem.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'NAME_ASC') return a.name.localeCompare(b.name);
+      if (sortBy === 'NAME_DESC') return b.name.localeCompare(a.name);
+      if (sortBy === 'OLDEST')
+        return (
+          new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        );
+      // NEWEST
+      return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+    });
 
   return (
     <div className="space-y-6">
@@ -101,14 +111,26 @@ export default function SemestersPage() {
 
       {/* Search Input */}
       {semesters.length > 0 && (
-        <div className="max-w-xs">
-          <input
-            type="text"
-            placeholder="Search semesters..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-          />
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex-1 max-w-xs">
+            <input
+              type="text"
+              placeholder="Search semesters..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="flex h-8 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring dark:bg-zinc-900"
+          >
+            <option value="NEWEST">Newest First</option>
+            <option value="OLDEST">Oldest First</option>
+            <option value="NAME_ASC">Name (A-Z)</option>
+            <option value="NAME_DESC">Name (Z-A)</option>
+          </select>
         </div>
       )}
 

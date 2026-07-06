@@ -9,7 +9,9 @@ import {
   Edit2,
   BookOpen,
   ArrowRight,
+  GripVertical,
 } from 'lucide-react';
+import { Reorder } from 'framer-motion';
 import { Subject, CreateSubjectInput } from '@aelpt/shared';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { Button } from '@/components/ui/button';
@@ -48,6 +50,7 @@ export default function SemesterDetailPage({
     addSubject,
     updateSubject,
     deleteSubject,
+    reorderSubjects,
   } = useAcademicMockStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -176,7 +179,12 @@ export default function SemesterDetailPage({
             : {})}
         />
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        <Reorder.Group
+          axis="y"
+          values={filteredSubjects}
+          onReorder={(newOrder) => reorderSubjects(semesterId, newOrder)}
+          className="grid gap-4 grid-cols-1 md:grid-cols-2"
+        >
           {filteredSubjects.map((sub) => {
             const subjectUnits = units.filter((u) => u.subjectId === sub.id);
             const unitIds = subjectUnits.map((u) => u.id);
@@ -198,77 +206,87 @@ export default function SemesterDetailPage({
                 : 0;
 
             return (
-              <Card
+              <Reorder.Item
+                value={sub}
                 key={sub.id}
-                onClick={() =>
-                  router.push(
-                    `${ROUTES.SEMESTER_DETAIL(semesterId)}/subjects/${sub.id}`
-                  )
-                }
-                className="group border border-border bg-card hover:bg-muted/10 cursor-pointer transition-all flex flex-col justify-between shadow-2xs hover:shadow-xs"
+                as="div"
+                className="focus-visible:outline-hidden"
               >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      {sub.code && (
-                        <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                          {sub.code}
-                        </span>
-                      )}
-                      <h3 className="font-bold text-base text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mt-1.5">
-                        {sub.name}
-                      </h3>
+                <Card
+                  onClick={() =>
+                    router.push(
+                      `${ROUTES.SEMESTER_DETAIL(semesterId)}/subjects/${sub.id}`
+                    )
+                  }
+                  className="group border border-border bg-card hover:bg-muted/10 cursor-pointer transition-all flex flex-col justify-between shadow-2xs hover:shadow-xs h-full"
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/30 mt-1 cursor-grab active:cursor-grabbing shrink-0" />
+                        <div>
+                          {sub.code && (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                              {sub.code}
+                            </span>
+                          )}
+                          <h3 className="font-bold text-base text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mt-1.5 truncate">
+                            {sub.name}
+                          </h3>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e) => handleOpenEdit(sub, e)}
+                          aria-label="Edit Subject"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e) => handleOpenDelete(sub.id, e)}
+                          className="text-destructive hover:text-destructive"
+                          aria-label="Delete Subject"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
+                  </CardHeader>
 
-                    {/* Actions */}
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={(e) => handleOpenEdit(sub, e)}
-                        aria-label="Edit Subject"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={(e) => handleOpenDelete(sub.id, e)}
-                        className="text-destructive hover:text-destructive"
-                        aria-label="Delete Subject"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
+                  <CardContent className="py-3">
+                    {sub.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
+                        {sub.description}
+                      </p>
+                    )}
 
-                <CardContent className="py-3">
-                  {sub.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-4">
-                      {sub.description}
-                    </p>
-                  )}
+                    {/* Syllabus progress & understanding gap using signature DualProgressBar */}
+                    <DualProgressBar
+                      completion={sub.progress}
+                      understanding={avgUnderstanding}
+                    />
+                  </CardContent>
 
-                  {/* Syllabus progress & understanding gap using signature DualProgressBar */}
-                  <DualProgressBar
-                    completion={sub.progress}
-                    understanding={avgUnderstanding}
-                  />
-                </CardContent>
-
-                <CardFooter className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-b-xl px-4 py-2">
-                  <span>
-                    {subjectUnits.length} units • {subjectTopics.length} topics
-                  </span>
-                  <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold group-hover:translate-x-0.5 transition-transform">
-                    Enter <ArrowRight className="h-3 w-3" />
-                  </span>
-                </CardFooter>
-              </Card>
+                  <CardFooter className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-b-xl px-4 py-2">
+                    <span>
+                      {subjectUnits.length} units • {subjectTopics.length}{' '}
+                      topics
+                    </span>
+                    <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+                      Enter <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </CardFooter>
+                </Card>
+              </Reorder.Item>
             );
           })}
-        </div>
+        </Reorder.Group>
       )}
 
       {/* Create/Edit dialog */}

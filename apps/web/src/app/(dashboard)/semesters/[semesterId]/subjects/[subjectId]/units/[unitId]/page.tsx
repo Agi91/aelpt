@@ -3,6 +3,7 @@
 import React, { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, BookOpen } from 'lucide-react';
+import { Reorder } from 'framer-motion';
 import { Topic, CreateTopicInput } from '@aelpt/shared';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ export default function UnitDetailPage({ params }: UnitDetailPageProps) {
     addTopic,
     updateTopic,
     deleteTopic,
+    reorderTopics,
   } = useAcademicMockStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,17 +226,28 @@ export default function UnitDetailPage({ params }: UnitDetailPageProps) {
             : {})}
         />
       ) : (
-        <div className="space-y-3">
+        <Reorder.Group
+          axis="y"
+          values={filteredTopics}
+          onReorder={(newOrder) => reorderTopics(unitId, newOrder)}
+          className="space-y-3"
+        >
           {filteredTopics.map((topic) => (
-            <TopicProgressCard
+            <Reorder.Item
+              value={topic}
               key={topic.id}
-              topic={topic}
-              onEdit={handleOpenEdit}
-              onDelete={handleOpenDelete}
-              onClick={handleTopicClick}
-            />
+              as="div"
+              className="focus-visible:outline-hidden"
+            >
+              <TopicProgressCard
+                topic={topic}
+                onEdit={handleOpenEdit}
+                onDelete={handleOpenDelete}
+                onClick={handleTopicClick}
+              />
+            </Reorder.Item>
           ))}
-        </div>
+        </Reorder.Group>
       )}
 
       {/* Create/Edit dialog */}

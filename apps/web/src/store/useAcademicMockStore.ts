@@ -62,6 +62,11 @@ interface AcademicMockState {
     >
   ) => void;
   deleteTopic: (id: string) => void;
+
+  // Reorder Actions
+  reorderSubjects: (semesterId: string, reordered: Subject[]) => void;
+  reorderUnits: (subjectId: string, reordered: Unit[]) => void;
+  reorderTopics: (unitId: string, reordered: Topic[]) => void;
 }
 
 // Helper to calculate progress values dynamically based on child elements
@@ -449,6 +454,28 @@ export const useAcademicMockStore = create<AcademicMockState>()(
             nextTopics
           );
           return { subjects, units, topics: nextTopics };
+        });
+      },
+      reorderSubjects: (semesterId, reordered) => {
+        set((state) => {
+          const otherSubjects = state.subjects.filter(
+            (s) => s.semesterId !== semesterId
+          );
+          return { subjects: [...otherSubjects, ...reordered] };
+        });
+      },
+      reorderUnits: (subjectId, reordered) => {
+        set((state) => {
+          const otherUnits = state.units.filter(
+            (u) => u.subjectId !== subjectId
+          );
+          return { units: [...otherUnits, ...reordered] };
+        });
+      },
+      reorderTopics: (unitId, reordered) => {
+        set((state) => {
+          const otherTopics = state.topics.filter((t) => t.unitId !== unitId);
+          return { topics: [...otherTopics, ...reordered] };
         });
       },
     }),

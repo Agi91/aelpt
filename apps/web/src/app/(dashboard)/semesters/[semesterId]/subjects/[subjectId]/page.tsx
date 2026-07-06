@@ -10,7 +10,9 @@ import {
   BookOpen,
   ArrowRight,
   Clock,
+  GripVertical,
 } from 'lucide-react';
+import { Reorder } from 'framer-motion';
 import { Unit, CreateUnitInput } from '@aelpt/shared';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { Button } from '@/components/ui/button';
@@ -46,6 +48,7 @@ export default function SubjectDetailPage({ params }: SubjectDetailPageProps) {
     addUnit,
     updateUnit,
     deleteUnit,
+    reorderUnits,
   } = useAcademicMockStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -178,87 +181,101 @@ export default function SubjectDetailPage({ params }: SubjectDetailPageProps) {
             : {})}
         />
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <Reorder.Group
+          axis="y"
+          values={filteredUnits}
+          onReorder={(newOrder) => reorderUnits(subjectId, newOrder)}
+          className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {filteredUnits.map((unit) => {
             const unitTopics = topics.filter((t) => t.unitId === unit.id);
 
             return (
-              <Card
+              <Reorder.Item
+                value={unit}
                 key={unit.id}
-                onClick={() =>
-                  router.push(
-                    `${ROUTES.SEMESTER_DETAIL(semesterId)}/subjects/${subjectId}/units/${unit.id}`
-                  )
-                }
-                className="group border border-border bg-card hover:bg-muted/10 cursor-pointer transition-all flex flex-col justify-between shadow-2xs hover:shadow-xs"
+                as="div"
+                className="focus-visible:outline-hidden"
               >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="font-bold text-base text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                      {unit.name}
-                    </h3>
+                <Card
+                  onClick={() =>
+                    router.push(
+                      `${ROUTES.SEMESTER_DETAIL(semesterId)}/subjects/${subjectId}/units/${unit.id}`
+                    )
+                  }
+                  className="group border border-border bg-card hover:bg-muted/10 cursor-pointer transition-all flex flex-col justify-between shadow-2xs hover:shadow-xs h-full"
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/30 mt-1 cursor-grab active:cursor-grabbing shrink-0" />
+                        <h3 className="font-bold text-base text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors truncate">
+                          {unit.name}
+                        </h3>
+                      </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={(e) => handleOpenEdit(unit, e)}
-                        aria-label="Edit Unit"
-                      >
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={(e) => handleOpenDelete(unit.id, e)}
-                        className="text-destructive hover:text-destructive"
-                        aria-label="Delete Unit"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* Actions */}
+                      <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e) => handleOpenEdit(unit, e)}
+                          aria-label="Edit Unit"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={(e) => handleOpenDelete(unit.id, e)}
+                          className="text-destructive hover:text-destructive"
+                          aria-label="Delete Unit"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
+                  </CardHeader>
 
-                <CardContent className="py-2 space-y-3">
-                  {unit.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                      {unit.description}
-                    </p>
-                  )}
+                  <CardContent className="py-2 space-y-3">
+                    {unit.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {unit.description}
+                      </p>
+                    )}
 
-                  {/* Estimation */}
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Estimated: {unit.estimatedHours} hours</span>
-                  </div>
-
-                  {/* Completion progress bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground font-medium">
-                      <span>Completion</span>
-                      <span>{unit.progress}%</span>
+                    {/* Estimation */}
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>Estimated: {unit.estimatedHours} hours</span>
                     </div>
-                    <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                        style={{ width: `${unit.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
 
-                <CardFooter className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-b-xl px-4 py-2">
-                  <span>{unitTopics.length} learning topics</span>
-                  <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold group-hover:translate-x-0.5 transition-transform">
-                    Enter <ArrowRight className="h-3 w-3" />
-                  </span>
-                </CardFooter>
-              </Card>
+                    {/* Completion progress bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                        <span>Completion</span>
+                        <span>{unit.progress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                          style={{ width: `${unit.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/10 rounded-b-xl px-4 py-2">
+                    <span>{unitTopics.length} learning topics</span>
+                    <span className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+                      Enter <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </CardFooter>
+                </Card>
+              </Reorder.Item>
             );
           })}
-        </div>
+        </Reorder.Group>
       )}
 
       {/* Create/Edit dialog */}
