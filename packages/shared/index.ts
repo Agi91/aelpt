@@ -2,3 +2,8 @@ export * from './src/constants/error-codes';
 export * from './src/constants/status';
 export * from './src/constants/difficulty';
 export * from './src/schemas/auth.schema';
+export * from './src/schemas/semester.schema';
+export * from './src/schemas/subject.schema';
+export * from './src/schemas/unit.schema';
+export * from './src/schemas/topic.schema';
+export * from './src/types/academic.types';
