@@ -7,3 +7,4 @@ export * from './src/schemas/subject.schema';
 export * from './src/schemas/unit.schema';
 export * from './src/schemas/topic.schema';
 export * from './src/types/academic.types';
+export * from './src/types/progress.types';

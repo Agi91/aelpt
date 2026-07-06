@@ -15,6 +15,9 @@ import {
   Timer,
   PlusCircle,
   Database,
+  Zap,
+  Award,
+  Play,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -27,107 +30,19 @@ import {
   StatCard,
   StatusBadge,
 } from '@/components/common';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MOCK DATA — Simulated dashboard data (populated state)
-// ─────────────────────────────────────────────────────────────────────────────
-const MOCK_STATS = [
-  {
-    title: 'Overall Understanding Score',
-    value: '78%',
-    subtitle: 'Placement Readiness Target: 85%',
-    trend: { direction: 'up' as const, label: '+4% this week' },
-    icon: <Brain className="h-4 w-4" />,
-    accent: 'bg-purple-600/10 text-purple-600 dark:text-purple-400',
-  },
-  {
-    title: 'Topics Completed',
-    value: '42 / 120',
-    subtitle: 'Across 4 active subjects',
-    trend: { direction: 'up' as const, label: '+12 completed' },
-    icon: <BookOpen className="h-4 w-4" />,
-    accent: 'bg-blue-600/10 text-blue-600 dark:text-blue-400',
-  },
-  {
-    title: 'Active Study Streak',
-    value: '5 days',
-    subtitle: 'Daily target: 1 focus session',
-    trend: { direction: 'up' as const, label: 'Personal best: 14d' },
-    icon: <Flame className="h-4 w-4" />,
-    accent: 'bg-amber-600/10 text-amber-600 dark:text-amber-400',
-  },
-  {
-    title: 'AI Study Sessions',
-    value: '18 queries',
-    subtitle: 'Gemini custom mentorship',
-    trend: { direction: 'flat' as const, label: 'Consistent usage' },
-    icon: <Sparkles className="h-4 w-4" />,
-    accent: 'bg-emerald-600/10 text-emerald-600 dark:text-emerald-400',
-  },
-];
-
-const MOCK_RECENT_ACTIVITIES = [
-  {
-    id: 'act-1',
-    topic: 'Quicksort & Merge Complexity',
-    subject: 'Algorithms & Data Structures',
-    timestamp: '2 hours ago',
-    type: 'notes',
-    score: 85,
-  },
-  {
-    id: 'act-2',
-    topic: 'Database Normalization Forms',
-    subject: 'Database Management Systems',
-    timestamp: 'Yesterday',
-    type: 'flashcards',
-    score: 62,
-  },
-  {
-    id: 'act-3',
-    topic: 'Virtual Memory & Paging',
-    subject: 'Operating Systems',
-    timestamp: '2 days ago',
-    type: 'ai-chat',
-    score: 91,
-  },
-];
-
-const MOCK_PROGRESS_ITEMS = [
-  {
-    id: 'sub-1',
-    name: 'Algorithms & Data Structures',
-    progress: 68,
-    status: 'in_progress' as const,
-    dueCards: 8,
-  },
-  {
-    id: 'sub-2',
-    name: 'Database Management Systems',
-    progress: 45,
-    status: 'in_progress' as const,
-    dueCards: 12,
-  },
-  {
-    id: 'sub-3',
-    name: 'Operating Systems',
-    progress: 90,
-    status: 'completed' as const,
-    dueCards: 0,
-  },
-  {
-    id: 'sub-4',
-    name: 'System Design Principles',
-    progress: 0,
-    status: 'not_started' as const,
-    dueCards: 0,
-  },
-];
+import { useAcademicMockStore } from '@/store/useAcademicMockStore';
+import { useProgressMockStore } from '@/store/useProgressMockStore';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { profile } = useAuth();
-  const [isEmptyState, setIsEmptyState] = useState(false);
+  const { semesters, subjects, units, topics } = useAcademicMockStore();
+  const { streakCount, dailyActivities, activityLogs, achievements } =
+    useProgressMockStore();
+
+  const [simulationEmpty, setSimulationEmpty] = useState<boolean | null>(null);
+  const isEmptyState =
+    simulationEmpty !== null ? simulationEmpty : semesters.length === 0;
 
   const getGreeting = () => {
     const hr = new Date().getHours();
@@ -139,6 +54,64 @@ export default function DashboardPage() {
   const handleCreateSemester = () => {
     router.push(ROUTES.SEMESTERS);
   };
+
+  // Calculate live KPI metrics
+  const activeTopics = topics;
+  const avgUnderstanding =
+    activeTopics.length > 0
+      ? Math.round(
+          activeTopics.reduce((acc, curr) => acc + curr.understandingScore, 0) /
+            activeTopics.length
+        )
+      : 0;
+
+  const completedTopicsCount = topics.filter(
+    (t) => t.status === 'COMPLETED'
+  ).length;
+  const totalTopicsCount = topics.length;
+
+  const totalStudyMinutes = dailyActivities.reduce(
+    (acc, curr) => acc + curr.minutesStudied,
+    0
+  );
+
+  const stats = [
+    {
+      title: 'Overall Understanding Score',
+      value: `${avgUnderstanding}%`,
+      subtitle: 'Placement Readiness Target: 85%',
+      trend: { direction: 'up' as const, label: '+4% this week' },
+      icon: <Brain className="h-4 w-4" />,
+      accent: 'bg-purple-600/10 text-purple-600 dark:text-purple-400',
+    },
+    {
+      title: 'Topics Completed',
+      value: `${completedTopicsCount} / ${totalTopicsCount}`,
+      subtitle: `Across ${subjects.length} active subjects`,
+      trend: {
+        direction: 'up' as const,
+        label: `+${completedTopicsCount} completed`,
+      },
+      icon: <BookOpen className="h-4 w-4" />,
+      accent: 'bg-blue-600/10 text-blue-600 dark:text-blue-400',
+    },
+    {
+      title: 'Active Study Streak',
+      value: `${streakCount} days`,
+      subtitle: 'Daily target: 1 focus session',
+      trend: { direction: 'up' as const, label: 'Personal best: 14d' },
+      icon: <Flame className="h-4 w-4" />,
+      accent: 'bg-amber-600/10 text-amber-600 dark:text-amber-400',
+    },
+    {
+      title: 'Total Study Time',
+      value: `${totalStudyMinutes} mins`,
+      subtitle: 'Accumulated focus session logs',
+      trend: { direction: 'flat' as const, label: 'Consistent usage' },
+      icon: <Timer className="h-4 w-4" />,
+      accent: 'bg-emerald-600/10 text-emerald-600 dark:text-emerald-400',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -152,7 +125,11 @@ export default function DashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsEmptyState(!isEmptyState)}
+              onClick={() =>
+                setSimulationEmpty(
+                  simulationEmpty === null ? true : !simulationEmpty
+                )
+              }
               className="text-xs h-8"
             >
               <Database className="h-3.5 w-3.5 mr-1" />
@@ -174,7 +151,7 @@ export default function DashboardPage() {
       {/* KPI Stats Row */}
       {!isEmptyState ? (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {MOCK_STATS.map((stat) => (
+          {stats.map((stat) => (
             <StatCard
               key={stat.title}
               title={stat.title}
@@ -188,7 +165,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {MOCK_STATS.map((stat) => (
+          {stats.map((stat) => (
             <StatCard
               key={stat.title}
               title={stat.title}
@@ -224,7 +201,7 @@ export default function DashboardPage() {
             </CardHeader>
 
             <CardContent>
-              {isEmptyState ? (
+              {isEmptyState || subjects.length === 0 ? (
                 <EmptyState
                   icon={<BookOpen className="h-6 w-6" />}
                   title="No subject progress found"
@@ -237,49 +214,73 @@ export default function DashboardPage() {
                 />
               ) : (
                 <div className="space-y-4">
-                  {MOCK_PROGRESS_ITEMS.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors gap-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm text-foreground">
-                            {item.name}
-                          </span>
-                          <StatusBadge status={item.status} />
-                        </div>
-                        {item.dueCards > 0 && (
-                          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                            ⚠️ {item.dueCards} cards due for revision
-                          </span>
-                        )}
-                      </div>
+                  {subjects.map((sub) => {
+                    const subjectUnits = units.filter(
+                      (u) => u.subjectId === sub.id
+                    );
+                    const unitIds = subjectUnits.map((u) => u.id);
+                    const subjectTopics = topics.filter((t) =>
+                      unitIds.includes(t.unitId)
+                    );
+                    const dueRevisionCount = subjectTopics.filter(
+                      (t) => t.status === 'REVISION_REQUIRED'
+                    ).length;
 
-                      <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="flex-1 sm:w-28 space-y-1">
-                          <div className="flex justify-between text-xs text-muted-foreground font-medium">
-                            <span>Syllabus Sync</span>
-                            <span>{item.progress}%</span>
+                    const status =
+                      sub.progress >= 100
+                        ? ('completed' as const)
+                        : sub.progress > 0
+                          ? ('in_progress' as const)
+                          : ('not_started' as const);
+
+                    return (
+                      <div
+                        key={sub.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 transition-colors gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-foreground">
+                              {sub.name}
+                            </span>
+                            <StatusBadge status={status} />
                           </div>
-                          <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-purple-600 rounded-full transition-all duration-500"
-                              style={{ width: `${item.progress}%` }}
-                            />
-                          </div>
+                          {dueRevisionCount > 0 && (
+                            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                              ⚠️ {dueRevisionCount} topics require revision
+                            </span>
+                          )}
                         </div>
-                        <Button
-                          variant="outline"
-                          size="xs"
-                          onClick={() => router.push(ROUTES.SEMESTERS)}
-                          className="shrink-0"
-                        >
-                          View Details
-                        </Button>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                          <div className="flex-1 sm:w-28 space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                              <span>Syllabus Sync</span>
+                              <span>{sub.progress}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-purple-600 rounded-full transition-all duration-500"
+                                style={{ width: `${sub.progress}%` }}
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() =>
+                              router.push(
+                                `${ROUTES.SEMESTERS}/${sub.semesterId}`
+                              )
+                            }
+                            className="shrink-0"
+                          >
+                            View Details
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -295,7 +296,7 @@ export default function DashboardPage() {
               />
             </CardHeader>
             <CardContent>
-              {isEmptyState ? (
+              {isEmptyState || activityLogs.length === 0 ? (
                 <EmptyState
                   icon={<Activity className="h-6 w-6" />}
                   title="No recent activities"
@@ -304,40 +305,38 @@ export default function DashboardPage() {
                 />
               ) : (
                 <div className="space-y-3">
-                  {MOCK_RECENT_ACTIVITIES.map((act) => (
+                  {activityLogs.slice(0, 5).map((log) => (
                     <div
-                      key={act.id}
+                      key={log.id}
                       className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-muted/10 transition-colors gap-4"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-600/10 text-purple-600 dark:text-purple-400 text-xs">
-                          {act.type === 'notes' ? (
+                          {log.type === 'TOPIC_COMPLETED' ? (
                             <PlusCircle className="h-4 w-4" />
-                          ) : act.type === 'flashcards' ? (
-                            <Layers className="h-4 w-4" />
+                          ) : log.type === 'TOPIC_STARTED' ? (
+                            <Play className="h-4 w-4" />
                           ) : (
-                            <Sparkles className="h-4 w-4" />
+                            <Activity className="h-4 w-4" />
                           )}
                         </span>
                         <div className="min-w-0">
                           <p className="text-xs text-muted-foreground truncate">
-                            {act.subject}
+                            {log.type.replace('_', ' ')}
                           </p>
                           <p className="text-sm font-medium text-foreground truncate">
-                            {act.topic}
+                            {log.message}
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="inline-block text-[10px] text-muted-foreground mb-0.5">
-                          {act.timestamp}
+                        <span className="inline-block text-[10px] text-muted-foreground">
+                          {new Date(log.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                         </span>
-                        {act.score !== undefined && (
-                          <div className="text-xs font-semibold text-purple-600 dark:text-purple-400">
-                            {act.score}% Understanding
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -394,7 +393,9 @@ export default function DashboardPage() {
                 </span>
                 <div>
                   <p className="text-sm font-bold text-foreground">
-                    {!isEmptyState ? '5 Days Active' : '0 Days Active'}
+                    {!isEmptyState
+                      ? `${streakCount} Days Active`
+                      : '0 Days Active'}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {!isEmptyState
@@ -419,6 +420,80 @@ export default function DashboardPage() {
                   results with your score.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Achievements & Milestones */}
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <SectionHeader
+                title="Achievements & Milestones"
+                className="mb-0"
+              />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isEmptyState ? (
+                <p className="text-xs text-muted-foreground text-center py-4">
+                  No active milestones
+                </p>
+              ) : (
+                achievements.map((ach) => {
+                  const IconComponent =
+                    ach.icon === 'Zap'
+                      ? Zap
+                      : ach.icon === 'Brain'
+                        ? Brain
+                        : ach.icon === 'Award'
+                          ? Award
+                          : BookOpen;
+                  const isUnlocked = ach.unlockedAt !== undefined;
+                  return (
+                    <div
+                      key={ach.id}
+                      className="space-y-1.5 p-3 rounded-lg border border-border bg-card"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs ${
+                            isUnlocked
+                              ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <IconComponent className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between items-start">
+                            <p className="text-xs font-semibold text-foreground truncate">
+                              {ach.title}
+                            </p>
+                            {isUnlocked ? (
+                              <span className="text-[9px] bg-green-500/10 text-green-700 dark:text-green-400 px-1.5 py-0.2 rounded-full font-bold">
+                                Unlocked
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground font-medium">
+                                {ach.progress}%
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {ach.description}
+                          </p>
+                        </div>
+                      </div>
+                      {!isUnlocked && (
+                        <div className="h-1 w-full bg-border rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-600 rounded-full"
+                            style={{ width: `${ach.progress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </CardContent>
           </Card>
         </div>

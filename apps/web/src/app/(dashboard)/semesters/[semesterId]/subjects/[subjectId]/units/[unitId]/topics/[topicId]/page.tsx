@@ -13,6 +13,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
+import { useProgressMockStore } from '@/store/useProgressMockStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PageHeader, EmptyState, StatusBadge } from '@/components/common';
@@ -39,6 +40,12 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
 
   const { semesters, subjects, units, topics, updateTopic } =
     useAcademicMockStore();
+  const {
+    logTopicStarted,
+    logTopicCompleted,
+    logUnderstandingUpdated,
+    addStudyMinutes,
+  } = useProgressMockStore();
 
   const semester = semesters.find((s) => s.id === semesterId);
   const subject = subjects.find(
@@ -74,10 +81,15 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
 
   const handleScoreChange = (newScore: number) => {
     setScore(newScore);
+    const updatedStatus = newScore >= 90 ? 'COMPLETED' : topic.status;
     updateTopic(topicId, {
       understandingScore: newScore,
-      status: newScore >= 90 ? 'COMPLETED' : topic.status, // Auto-update status demo
+      status: updatedStatus,
     });
+    logUnderstandingUpdated(topic.title, newScore);
+    if (newScore >= 90 && topic.status !== 'COMPLETED') {
+      logTopicCompleted(topic.title);
+    }
   };
 
   return (
@@ -126,7 +138,13 @@ export default function TopicDetailPage({ params }: TopicDetailPageProps) {
           subtitle={`Part of ${unit.name} • ${subject.name}`}
           className="mb-0"
           actions={
-            <Button className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5">
+            <Button
+              onClick={() => {
+                logTopicStarted(topic.title);
+                addStudyMinutes(15);
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5"
+            >
               <Play className="h-3.5 w-3.5" />
               Start Study Session
             </Button>
