@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 import { Toaster } from '@/components/ui/sonner';
 
 // --------------------------------------------------------
@@ -66,10 +67,12 @@ export default function RootLayout({
           } as React.CSSProperties
         }
       >
-        <AuthProvider>
-          {children}
-          <Toaster position="top-right" closeButton richColors />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster position="top-right" closeButton richColors />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
