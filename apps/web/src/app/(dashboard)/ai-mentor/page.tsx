@@ -22,6 +22,13 @@ import {
   RotateCw,
   CheckCircle2,
   Bookmark,
+  Mic,
+  Volume2,
+  Download,
+  CheckSquare,
+  Square,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAiMentorMockStore } from '@/store/useAiMentorMockStore';
@@ -29,6 +36,7 @@ import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useNotesMockStore } from '@/store/useNotesMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
+import { useVoiceAssistantMockStore } from '@/store/useVoiceAssistantMockStore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -39,7 +47,7 @@ import {
 import { PageHeader, EmptyState } from '@/components/common';
 import { toast } from 'sonner';
 
-type ActiveTab = 'CHAT' | 'FLASHCARDS' | 'QUIZ' | 'HELPER';
+type ActiveTab = 'CHAT' | 'FLASHCARDS' | 'QUIZ' | 'HELPER' | 'VOICE';
 
 interface SimulatedFlashcard {
   front: string;
@@ -67,6 +75,7 @@ export default function AiMentorPage() {
   const academicStore = useAcademicMockStore();
   const notesStore = useNotesMockStore();
   const progressStore = useProgressMockStore();
+  const voiceStore = useVoiceAssistantMockStore();
 
   // Chat Input states
   const [chatInput, setChatInput] = useState('');
@@ -117,6 +126,151 @@ export default function AiMentorPage() {
   const [explainTab, setExplainTab] = useState<'EL5' | 'DEEP' | 'ANALOGY'>(
     'EL5'
   );
+
+  // Voice Assistant states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribeProgress, setTranscribeProgress] = useState(0);
+  const [transcribeProgressText, setTranscribeProgressText] = useState('');
+  const [editTranscriptText, setEditTranscriptText] = useState('');
+  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [voiceViewTab, setVoiceViewTab] = useState<'TEXT' | 'INSIGHTS'>('TEXT');
+  const [completedActionItems, setCompletedActionItems] = useState<
+    Record<string, boolean>
+  >({});
+
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const formatSeconds = (totalSeconds: number): string => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const activeVoiceSession = useMemo(() => {
+    return (
+      voiceStore.history.find((s) => s.id === voiceStore.activeSessionId) ||
+      null
+    );
+  }, [voiceStore.history, voiceStore.activeSessionId]);
+
+  // Sync edit state when active session changes
+  useEffect(() => {
+    if (activeVoiceSession) {
+      setEditTranscriptText(activeVoiceSession.transcript);
+      setIsEditingTranscript(false);
+    } else {
+      setEditTranscriptText('');
+    }
+  }, [activeVoiceSession]);
+
+  const handleStartRecording = () => {
+    setIsRecording(true);
+    setRecordSeconds(0);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+    }
+    recordingTimerRef.current = setInterval(() => {
+      setRecordSeconds((p) => p + 1);
+    }, 1000);
+    toast.success('Simulated recording started');
+  };
+
+  const handleStopRecording = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setIsRecording(false);
+
+    setIsTranscribing(true);
+    setTranscribeProgress(10);
+    setTranscribeProgressText('Simulating voice capture extraction...');
+
+    if (simulateError) {
+      setTimeout(() => {
+        setIsTranscribing(false);
+        toast.error(
+          'Voice Assistant failure: Simulated API audio timeout (504).'
+        );
+      }, 1200);
+      return;
+    }
+
+    const steps = [
+      { p: 35, t: 'Denoising audio stream...' },
+      { p: 70, t: 'Translating voice transcription nodes...' },
+      { p: 100, t: 'Extracting key takeaways & checklists...' },
+    ];
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length) {
+        const step = steps[currentStep];
+        if (step) {
+          setTranscribeProgress(step.p);
+          setTranscribeProgressText(step.t);
+        }
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        setTimeout(() => {
+          setIsTranscribing(false);
+          const durationStr = formatSeconds(recordSeconds);
+
+          // Add new voice note session
+          voiceStore.addSession({
+            title: `Voice Session: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+            duration: durationStr,
+            transcript:
+              'This is a simulated audio transcription details review note. Today we reviewed computer science network interface protocols, focusing on congestion window slow start states where congestion thresholds are doubled on each incoming ACK frame.',
+            summary:
+              'Review of network interface layers, slow-start states, and congestion window growth limits.',
+            keyPoints: [
+              'Slow start phase increases congestion window exponentially.',
+              'ssthresh state sets the boundary threshold for transition to linear growth.',
+              'Congestion avoidance takes over once ssthresh limit is reached.',
+            ],
+            actionItems: [
+              'Practice mapping network TCP window congestion charts.',
+              'Add congestion avoidance flashcard recall queries.',
+            ],
+          });
+          toast.success('Audio transcribed and saved successfully!');
+        }, 300);
+      }
+    }, 450);
+  };
+
+  const handleSaveTranscriptEdits = () => {
+    if (voiceStore.activeSessionId && editTranscriptText.trim()) {
+      voiceStore.updateSessionTranscript(
+        voiceStore.activeSessionId,
+        editTranscriptText
+      );
+      setIsEditingTranscript(false);
+      toast.success('Transcript edits saved successfully');
+    }
+  };
+
+  const toggleActionItem = (itemText: string) => {
+    setCompletedActionItems((prev) => ({
+      ...prev,
+      [itemText]: !prev[itemText],
+    }));
+  };
+
+  const handleDownloadTranscript = (text: string) => {
+    const element = document.createElement('a');
+    const file = new Blob([text], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = 'voice_session_transcript.txt';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success('Transcript downloaded as text file');
+  };
 
   const activeConversation = chatStore.conversations.find(
     (c) => c.id === chatStore.activeConversationId
@@ -721,12 +875,13 @@ In Big O, what is the average complexity of finding an item in a hash table?
       />
 
       {/* Tabs list selector */}
-      <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border text-xs font-bold select-none max-w-lg">
+      <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border text-xs font-bold select-none max-w-2xl">
         {[
           { id: 'CHAT', label: 'Tutor Chat' },
           { id: 'FLASHCARDS', label: 'Flashcard Gen' },
           { id: 'QUIZ', label: 'Quiz Simulator' },
           { id: 'HELPER', label: 'AI Helper Hub' },
+          { id: 'VOICE', label: 'Voice Assistant' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1677,6 +1832,368 @@ In Big O, what is the average complexity of finding an item in a hash table?
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </motion.div>
+        )}
+
+        {/* TAB 5: AI Voice Assistant */}
+        {activeTab === 'VOICE' && (
+          <motion.div
+            key="voice"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          >
+            {/* Left Sidebar: recorder and past logs */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Simulated Audio Recorder */}
+              <Card className="border border-border">
+                <CardHeader>
+                  <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                    <Mic className="h-4 w-4 text-purple-600" />
+                    Recording Studio
+                  </h3>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs text-center flex flex-col items-center justify-center pt-2">
+                  {isRecording ? (
+                    <div className="space-y-4 w-full flex flex-col items-center">
+                      {/* Bouncing Waveform animation */}
+                      <div className="flex items-center justify-center gap-1 h-12 w-full max-w-[180px]">
+                        {[
+                          0.4, 0.9, 0.5, 0.8, 0.3, 0.7, 0.5, 0.9, 0.4, 0.8, 0.3,
+                          0.6,
+                        ].map((h, i) => (
+                          <motion.div
+                            key={i}
+                            className="w-1.5 bg-purple-600 rounded-full"
+                            animate={{ height: [10, h * 40, 10] }}
+                            transition={{
+                              repeat: Infinity,
+                              duration: 0.6,
+                              delay: i * 0.05,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-lg font-mono font-bold text-foreground">
+                          {formatSeconds(recordSeconds)}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground animate-pulse">
+                          Capturing simulated voice streams...
+                        </p>
+                      </div>
+
+                      <Button
+                        onClick={handleStopRecording}
+                        className="bg-red-600 hover:bg-red-700 text-white rounded-full p-3 h-10 w-10 flex items-center justify-center"
+                        title="Stop Recording"
+                      >
+                        <Square className="h-4 w-4 fill-white" />
+                      </Button>
+                    </div>
+                  ) : isTranscribing ? (
+                    <div className="space-y-3 w-full py-4 text-center">
+                      <RotateCw className="h-6 w-6 text-purple-600 animate-spin mx-auto" />
+                      <div className="space-y-1">
+                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden max-w-[200px] mx-auto">
+                          <div
+                            className="h-full bg-purple-600 transition-all duration-300"
+                            style={{ width: `${transcribeProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] font-bold text-foreground animate-pulse">
+                          {transcribeProgressText}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 py-4 text-center">
+                      <div className="p-3 bg-purple-600/10 rounded-full w-fit mx-auto">
+                        <Mic className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Simulate speaking study notes out loud to transcribe key
+                        points.
+                      </p>
+                      <Button
+                        onClick={handleStartRecording}
+                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 gap-1.5"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-white" /> Start
+                        Recording
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Past Voice Logs History */}
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <h3 className="font-bold text-xs text-muted-foreground tracking-wide uppercase">
+                    Past Voice Notes ({voiceStore.history.length})
+                  </h3>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-2 text-xs">
+                  {voiceStore.history.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-6 italic">
+                      No voice sessions logged.
+                    </p>
+                  ) : (
+                    voiceStore.history.map((session) => {
+                      const isActive =
+                        session.id === voiceStore.activeSessionId;
+                      return (
+                        <div
+                          key={session.id}
+                          onClick={() =>
+                            voiceStore.setActiveSessionId(session.id)
+                          }
+                          className={`group flex items-start justify-between p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                            isActive
+                              ? 'bg-purple-500/10 border-purple-600/30 text-foreground font-bold'
+                              : 'border-transparent bg-transparent hover:bg-muted/10 text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-foreground truncate">
+                              {session.title}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground mt-0.5">
+                              <span className="bg-muted px-1 py-0.2 rounded-sm font-semibold">
+                                {session.duration}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {new Date(
+                                  session.createdAt
+                                ).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              voiceStore.deleteSession(session.id);
+                              toast.success('Voice session deleted');
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0 ml-2"
+                            title="Delete note"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right: Active transcription notes inspector */}
+            <div className="lg:col-span-2">
+              {activeVoiceSession ? (
+                <Card className="border border-border h-full flex flex-col justify-between">
+                  <CardHeader className="pb-2 border-b border-border bg-muted/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                          <Volume2 className="h-4 w-4 text-purple-600 animate-pulse" />
+                          {activeVoiceSession.title}
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Recorded{' '}
+                          {new Date(
+                            activeVoiceSession.createdAt
+                          ).toLocaleString()}{' '}
+                          | Duration: {activeVoiceSession.duration}
+                        </p>
+                      </div>
+
+                      {/* Tab toggles */}
+                      <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border text-[10px] font-bold select-none shrink-0 self-start sm:self-center">
+                        <button
+                          onClick={() => setVoiceViewTab('TEXT')}
+                          className={`px-2.5 py-1 rounded-md transition-colors ${
+                            voiceViewTab === 'TEXT'
+                              ? 'bg-card text-foreground shadow-2xs'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          Transcript
+                        </button>
+                        <button
+                          onClick={() => setVoiceViewTab('INSIGHTS')}
+                          className={`px-2.5 py-1 rounded-md transition-colors ${
+                            voiceViewTab === 'INSIGHTS'
+                              ? 'bg-card text-foreground shadow-2xs'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          AI Insights
+                        </button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 text-xs leading-relaxed">
+                    {voiceViewTab === 'TEXT' ? (
+                      /* Transcript Editor viewport */
+                      <div className="space-y-4 flex flex-col h-full">
+                        <div className="flex justify-between items-center bg-muted/20 p-2 border border-border rounded-lg text-[10px] font-bold text-muted-foreground">
+                          <span>Study speech transcript contents</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() =>
+                                handleDownloadTranscript(
+                                  activeVoiceSession.transcript
+                                )
+                              }
+                              className="hover:text-purple-600 flex items-center gap-1"
+                              title="Download Transcript"
+                            >
+                              <Download className="h-3.5 w-3.5" /> Download
+                            </button>
+                            <span>|</span>
+                            <button
+                              onClick={() =>
+                                handleCopy(
+                                  activeVoiceSession.transcript,
+                                  'voice_copy'
+                                )
+                              }
+                              className="hover:text-purple-600 flex items-center gap-1"
+                              title="Copy Transcript"
+                            >
+                              {copiedId === 'voice_copy' ? (
+                                <Check className="h-3.5 w-3.5" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}{' '}
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+
+                        {isEditingTranscript ? (
+                          <div className="space-y-3">
+                            <textarea
+                              value={editTranscriptText}
+                              onChange={(e) =>
+                                setEditTranscriptText(e.target.value)
+                              }
+                              rows={8}
+                              className="w-full flex rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsEditingTranscript(false)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="bg-purple-600 text-white"
+                                onClick={handleSaveTranscriptEdits}
+                              >
+                                Save Edits
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="p-4 border border-border bg-card/65 rounded-xl text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                              {activeVoiceSession.transcript}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 h-8 text-[11px]"
+                              onClick={() => setIsEditingTranscript(true)}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" /> Edit Transcript
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* AI Insights viewport: Summary, Keypoints, Action checkboxes */
+                      <div className="space-y-6">
+                        {/* Summary takeaway */}
+                        <div className="p-3 border border-purple-500/15 bg-purple-500/5 rounded-xl space-y-1.5">
+                          <h4 className="font-bold text-purple-600 text-[10px] uppercase flex items-center gap-1">
+                            <Brain className="h-3.5 w-3.5" /> AI Summary
+                            Takeaways
+                          </h4>
+                          <p className="text-muted-foreground text-[11px] leading-relaxed">
+                            {activeVoiceSession.summary}
+                          </p>
+                        </div>
+
+                        {/* Key points extraction */}
+                        <div className="space-y-2">
+                          <h4 className="font-bold text-[10px] text-foreground uppercase tracking-wider">
+                            Key Points Extracted
+                          </h4>
+                          <ul className="space-y-1.5 list-disc ml-4 text-muted-foreground text-[11px]">
+                            {activeVoiceSession.keyPoints.map(
+                              (point, index) => (
+                                <li key={index}>{point}</li>
+                              )
+                            )}
+                          </ul>
+                        </div>
+
+                        {/* Action checklists */}
+                        <div className="space-y-2">
+                          <h4 className="font-bold text-[10px] text-foreground uppercase tracking-wider">
+                            Simulated Action Checklist
+                          </h4>
+                          <div className="space-y-1.5 pt-1">
+                            {activeVoiceSession.actionItems.map(
+                              (item, index) => {
+                                const isChecked = !!completedActionItems[item];
+                                return (
+                                  <div
+                                    key={index}
+                                    onClick={() => toggleActionItem(item)}
+                                    className="flex items-center gap-2 p-2 border border-border bg-card/65 hover:bg-muted/5 rounded-lg cursor-pointer select-none text-[11px]"
+                                  >
+                                    <button className="text-purple-600 shrink-0">
+                                      {isChecked ? (
+                                        <CheckSquare className="h-4 w-4 fill-purple-500/10" />
+                                      ) : (
+                                        <Square className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                    <span
+                                      className={`text-muted-foreground ${isChecked ? 'line-through opacity-60' : ''}`}
+                                    >
+                                      {item}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <EmptyState
+                  icon={<Mic className="h-8 w-8" />}
+                  title="Voice Study Assistant"
+                  description="Capture study audio, transcribe speech into notes, extract checklists, and review takeaways."
+                />
+              )}
             </div>
           </motion.div>
         )}
