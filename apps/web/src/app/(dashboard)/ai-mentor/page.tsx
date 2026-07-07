@@ -156,6 +156,10 @@ export default function AiMentorPage() {
     Record<string, boolean>
   >({});
 
+  // Audio playback simulator states
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioPlaybackProgress, setAudioPlaybackProgress] = useState(0);
+
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const formatSeconds = (totalSeconds: number): string => {
@@ -180,6 +184,55 @@ export default function AiMentorPage() {
       setEditTranscriptText('');
     }
   }, [activeVoiceSession]);
+
+  // Audio playback simulator ticker
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isPlayingAudio) {
+      timer = setInterval(() => {
+        setAudioPlaybackProgress((prev) => {
+          if (prev >= 100) {
+            setIsPlayingAudio(false);
+            toast.info('Audio playback simulation complete');
+            return 0;
+          }
+          return prev + 4; // Increments by 4% per tick
+        });
+      }, 100);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isPlayingAudio]);
+
+  const handleExportMarkdown = (session: typeof activeVoiceSession) => {
+    if (!session) return;
+    const mdText = `# ${session.title}
+Duration: ${session.duration}
+Confidence: ${Math.round(session.confidence * 100)}%
+Date: ${new Date(session.createdAt).toLocaleDateString()}
+
+## Transcript
+${session.transcript}
+
+## AI Summary
+${session.summary}
+
+## Key Takeaways
+${session.keyPoints.map((p) => `- ${p}`).join('\n')}
+
+## Action Items
+${session.actionItems.map((a) => `- [ ] ${a}`).join('\n')}
+`;
+    const element = document.createElement('a');
+    const file = new Blob([mdText], { type: 'text/markdown' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${session.title.toLowerCase().replace(/\s+/g, '_')}_summary.md`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success('Exported note summary as Markdown file!');
+  };
 
   const handleStartRecording = () => {
     setIsRecording(true);
@@ -249,6 +302,8 @@ export default function AiMentorPage() {
           'Practice mapping network TCP window congestion charts.',
           'Add congestion avoidance flashcard recall queries.',
         ],
+        confidence: Number((0.92 + Math.random() * 0.07).toFixed(3)),
+        audioUrl: `mock_audio_url_${Date.now()}`,
       });
 
       logAiRequest('Voice Summary', prompt, isCached);
@@ -2082,11 +2137,17 @@ export default function AiMentorPage() {
                 <Card className="border border-border h-full flex flex-col justify-between">
                   <CardHeader className="pb-2 border-b border-border bg-muted/10">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
-                          <Volume2 className="h-4 w-4 text-purple-600 animate-pulse" />
-                          {activeVoiceSession.title}
-                        </h3>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
+                            <Volume2 className="h-4 w-4 text-purple-600" />
+                            {activeVoiceSession.title}
+                          </h3>
+                          <span className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase shrink-0">
+                            Confidence:{' '}
+                            {Math.round(activeVoiceSession.confidence * 100)}%
+                          </span>
+                        </div>
                         <p className="text-[10px] text-muted-foreground mt-0.5">
                           Recorded{' '}
                           {new Date(
@@ -2094,6 +2155,32 @@ export default function AiMentorPage() {
                           ).toLocaleString()}{' '}
                           | Duration: {activeVoiceSession.duration}
                         </p>
+                      </div>
+
+                      {/* Audio Playback Simulation Control Panel */}
+                      <div className="flex items-center gap-3 bg-muted/30 px-2.5 py-1.5 border border-border rounded-lg text-[10px] select-none self-start sm:self-center">
+                        <button
+                          onClick={() => setIsPlayingAudio(!isPlayingAudio)}
+                          className="p-1 hover:text-purple-600 text-muted-foreground transition-colors shrink-0"
+                          title={isPlayingAudio ? 'Pause Audio' : 'Play Audio'}
+                        >
+                          {isPlayingAudio ? (
+                            <Square className="h-3.5 w-3.5 fill-current" />
+                          ) : (
+                            <Play className="h-3.5 w-3.5 fill-current" />
+                          )}
+                        </button>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-mono text-[9px] text-muted-foreground">
+                            Playback Simulation
+                          </span>
+                          <div className="h-1 w-24 bg-muted rounded-full overflow-hidden shrink-0">
+                            <div
+                              className="h-full bg-purple-600 transition-all duration-300"
+                              style={{ width: `${audioPlaybackProgress}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Tab toggles */}
@@ -2128,7 +2215,7 @@ export default function AiMentorPage() {
                       <div className="space-y-4 flex flex-col h-full">
                         <div className="flex justify-between items-center bg-muted/20 p-2 border border-border rounded-lg text-[10px] font-bold text-muted-foreground">
                           <span>Study speech transcript contents</span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 items-center">
                             <button
                               onClick={() =>
                                 handleDownloadTranscript(
@@ -2139,6 +2226,16 @@ export default function AiMentorPage() {
                               title="Download Transcript"
                             >
                               <Download className="h-3.5 w-3.5" /> Download
+                            </button>
+                            <span>|</span>
+                            <button
+                              onClick={() =>
+                                handleExportMarkdown(activeVoiceSession)
+                              }
+                              className="hover:text-purple-600 flex items-center gap-1"
+                              title="Export notes to Markdown"
+                            >
+                              <FileText className="h-3.5 w-3.5" /> Export MD
                             </button>
                             <span>|</span>
                             <button

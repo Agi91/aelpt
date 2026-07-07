@@ -9,6 +9,8 @@ export interface VoiceSession {
   summary: string;
   keyPoints: string[];
   actionItems: string[];
+  confidence: number; // e.g. 0.98 for AI confidence indicators
+  audioUrl?: string; // mock audio URL for simulated audio playback
   createdAt: string;
 }
 
@@ -41,6 +43,8 @@ const DEFAULT_HISTORY: VoiceSession[] = [
       'Write recursive traversal function structures in TypeScript.',
       'Practice drawing traversal outputs for unbalanced trees.',
     ],
+    confidence: 0.98,
+    audioUrl: 'mock_audio_url_1',
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
@@ -59,6 +63,8 @@ const DEFAULT_HISTORY: VoiceSession[] = [
       'Deconstruct database anomalies example employee table.',
       'Attempt DBMS normalization quiz.',
     ],
+    confidence: 0.95,
+    audioUrl: 'mock_audio_url_2',
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ];
