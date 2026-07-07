@@ -8,3 +8,6 @@ export * from './src/schemas/unit.schema';
 export * from './src/schemas/topic.schema';
 export * from './src/types/academic.types';
 export * from './src/types/progress.types';
+export * from './src/types/flashcard.types';
+export * from './src/schemas/deck.schema';
+export * from './src/schemas/flashcard.schema';
