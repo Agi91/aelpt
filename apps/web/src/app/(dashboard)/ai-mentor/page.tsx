@@ -37,6 +37,9 @@ import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useNotesMockStore } from '@/store/useNotesMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
 import { useVoiceAssistantMockStore } from '@/store/useVoiceAssistantMockStore';
+import { AiService, AiServiceError } from '@/lib/ai/service';
+import { PROMPT_TEMPLATES } from '@/lib/ai/templates';
+import { aiCache } from '@/lib/ai/cache';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -76,6 +79,19 @@ export default function AiMentorPage() {
   const notesStore = useNotesMockStore();
   const progressStore = useProgressMockStore();
   const voiceStore = useVoiceAssistantMockStore();
+
+  // AI Architecture states
+  const [useCache, setUseCache] = useState(true);
+  const [requestLogs, setRequestLogs] = useState<
+    {
+      id: string;
+      action: string;
+      prompt: string;
+      cached: boolean;
+      timestamp: string;
+    }[]
+  >([]);
+  const [retryHandler, setRetryHandler] = useState<(() => void) | null>(null);
 
   // Chat Input states
   const [chatInput, setChatInput] = useState('');
@@ -177,7 +193,7 @@ export default function AiMentorPage() {
     toast.success('Simulated recording started');
   };
 
-  const handleStopRecording = () => {
+  const handleStopRecording = async () => {
     if (recordingTimerRef.current) {
       clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = null;
@@ -185,62 +201,65 @@ export default function AiMentorPage() {
     setIsRecording(false);
 
     setIsTranscribing(true);
-    setTranscribeProgress(10);
+    setTranscribeProgress(15);
     setTranscribeProgressText('Simulating voice capture extraction...');
+    setRetryHandler(() => () => handleStopRecording());
 
-    if (simulateError) {
-      setTimeout(() => {
-        setIsTranscribing(false);
-        toast.error(
-          'Voice Assistant failure: Simulated API audio timeout (504).'
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
         );
-      }, 1200);
-      return;
-    }
-
-    const steps = [
-      { p: 35, t: 'Denoising audio stream...' },
-      { p: 70, t: 'Translating voice transcription nodes...' },
-      { p: 100, t: 'Extracting key takeaways & checklists...' },
-    ];
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < steps.length) {
-        const step = steps[currentStep];
-        if (step) {
-          setTranscribeProgress(step.p);
-          setTranscribeProgressText(step.t);
-        }
-        currentStep++;
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsTranscribing(false);
-          const durationStr = formatSeconds(recordSeconds);
-
-          // Add new voice note session
-          voiceStore.addSession({
-            title: `Voice Session: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-            duration: durationStr,
-            transcript:
-              'This is a simulated audio transcription details review note. Today we reviewed computer science network interface protocols, focusing on congestion window slow start states where congestion thresholds are doubled on each incoming ACK frame.',
-            summary:
-              'Review of network interface layers, slow-start states, and congestion window growth limits.',
-            keyPoints: [
-              'Slow start phase increases congestion window exponentially.',
-              'ssthresh state sets the boundary threshold for transition to linear growth.',
-              'Congestion avoidance takes over once ssthresh limit is reached.',
-            ],
-            actionItems: [
-              'Practice mapping network TCP window congestion charts.',
-              'Add congestion avoidance flashcard recall queries.',
-            ],
-          });
-          toast.success('Audio transcribed and saved successfully!');
-        }, 300);
       }
-    }, 450);
+
+      const stepTimer = setTimeout(() => {
+        setTranscribeProgress(60);
+        setTranscribeProgressText('Translating voice transcription nodes...');
+      }, 350);
+
+      const prompt = `Transcribe study recording audio of duration ${recordSeconds} seconds.`;
+      const isCached = useCache && !!aiCache.get(prompt);
+
+      const res = await AiService.generateText(
+        { prompt },
+        { provider: 'mock', enableCache: useCache }
+      );
+
+      clearTimeout(stepTimer);
+      setTranscribeProgress(100);
+      setTranscribeProgressText('Success');
+      setIsTranscribing(false);
+
+      const durationStr = formatSeconds(recordSeconds);
+
+      voiceStore.addSession({
+        title: `Voice Session: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        duration: durationStr,
+        transcript: res.text,
+        summary:
+          'Review of network interface layers, slow-start states, and congestion window growth limits.',
+        keyPoints: [
+          'Slow start phase increases congestion window exponentially.',
+          'ssthresh state sets the boundary threshold for transition to linear growth.',
+          'Congestion avoidance takes over once ssthresh limit is reached.',
+        ],
+        actionItems: [
+          'Practice mapping network TCP window congestion charts.',
+          'Add congestion avoidance flashcard recall queries.',
+        ],
+      });
+
+      logAiRequest('Voice Summary', prompt, isCached);
+      toast.success('Audio transcribed and saved successfully!');
+      setRetryHandler(null);
+    } catch (err) {
+      setIsTranscribing(false);
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
   const handleSaveTranscriptEdits = () => {
@@ -411,210 +430,183 @@ export default function AiMentorPage() {
       .join('');
   };
 
-  // Rule-based replies dictionary
-  const generateSimulatedReply = (query: string): string => {
-    const lower = query.toLowerCase();
-
-    if (
-      lower.includes('big o') ||
-      lower.includes('complexity') ||
-      lower.includes('algorithm')
-    ) {
-      return `Big O complexity maps execution growth against input size $N$:
-
-- **O(1) Constant**: Accessing an index in an array.
-- **O(log N) Logarithmic**: Binary Search traversal.
-- **O(N) Linear**: Iterating items once.
-- **O(N log N)**: Merge Sort pivot splitting.
-\`\`\`typescript
-function binarySearch(arr: number[], target: number): number {
-  let low = 0, high = arr.length - 1;
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    if (arr[mid] === target) return mid;
-    else if (arr[mid]! < target) low = mid + 1;
-    else high = mid - 1;
-  }
-  return -1;
-}
-\`\`\``;
-    }
-
-    if (
-      lower.includes('normal form') ||
-      lower.includes('3nf') ||
-      lower.includes('dbms') ||
-      lower.includes('database')
-    ) {
-      return `Database schemas require normalization optimization to prevent structural update issues:
-
-- **1NF**: Atomic values.
-- **2NF**: Satisfies 1NF and contains no partial key functional dependencies.
-- **3NF**: Satisfies 2NF and contains no transitive functional dependencies.
-
-Transitive dependency example:
-\`\`\`sql
--- ID -> DeptID -> DeptName (Violation: DeptName transitively depends on ID)
-CREATE TABLE Employee (
-  EmpID INT PRIMARY KEY,
-  DeptID INT,
-  DeptName VARCHAR(50)
-);
-\`\`\``;
-    }
-
-    if (lower.includes('quiz') || lower.includes('practice')) {
-      return `Let me challenge you with a multiple-choice question:
-
-### Question:
-In Big O, what is the average complexity of finding an item in a hash table?
-- [A] O(1)
-- [B] O(log N)
-- [C] O(N)
-- [D] O(N log N)
-
-*Reply with your answer letter (A, B, C, or D) to check it!*`;
-    }
-
-    if (lower.match(/^(a|b|c|d)$/)) {
-      if (lower === 'a') {
-        return `🎉 **Correct!** Average complexity of hash table lookups is constant time, **O(1)**. Collision resolution handles worst case growth ($O(N)$).`;
-      }
-      return `❌ **Incorrect.** The correct answer is [A] O(1). Hash tables leverage constant key hashing logic for optimal lookups.`;
-    }
-
-    return `I am here to guide your studies! Ask questions, or switch to the **Generators** tabs to generate Spaced Repetition flashcards and interactive quizzes.`;
+  // AI Request log helper
+  const logAiRequest = (action: string, prompt: string, cached: boolean) => {
+    const newEntry = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      action,
+      prompt: prompt.length > 60 ? prompt.substring(0, 60) + '...' : prompt,
+      cached,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    setRequestLogs((prev) => [newEntry, ...prev.slice(0, 9)]);
   };
 
   // Chat actions
-  const handleSendChat = (text: string) => {
+  const handleSendChat = async (text: string) => {
     if (!text.trim() || !chatStore.activeConversationId) return;
 
     chatStore.addMessage(chatStore.activeConversationId, 'user', text);
     setChatInput('');
     setIsTyping(true);
+    setRetryHandler(() => () => handleSendChat(text));
 
-    if (simulateError) {
-      setTimeout(() => {
-        setIsTyping(false);
-        toast.error('AI Connection Timeout (504): Simulated Network Error');
-      }, 1000);
-      return;
-    }
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
+        );
+      }
 
-    const reply = generateSimulatedReply(text);
+      const isCached = useCache && !!aiCache.get(text);
 
-    setTimeout(() => {
+      let streamOutput = '';
       setIsTyping(false);
       setIsStreaming(true);
       setStreamedText('');
 
-      let index = 0;
-      const timer = setInterval(() => {
-        if (index < reply.length) {
-          setStreamedText((prev) => prev + reply.charAt(index));
-          index += 2;
-        } else {
-          clearInterval(timer);
-          setIsStreaming(false);
-          chatStore.addMessage(
-            chatStore.activeConversationId!,
-            'assistant',
-            reply
-          );
-          setStreamedText('');
-        }
-      }, 15);
-    }, 1200);
+      await AiService.generateStream(
+        { prompt: text },
+        (chunk) => {
+          streamOutput += chunk.text;
+          setStreamedText(streamOutput);
+        },
+        { provider: 'mock', enableCache: useCache }
+      );
+
+      setIsStreaming(false);
+      chatStore.addMessage(
+        chatStore.activeConversationId,
+        'assistant',
+        streamOutput
+      );
+      setStreamedText('');
+      logAiRequest('Tutor Chat', text, isCached);
+      setRetryHandler(null);
+    } catch (err) {
+      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamedText('');
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
-  const handleRegenerateChat = () => {
+  const handleRegenerateChat = async () => {
     if (!activeConversation || activeConversation.messages.length === 0) return;
     const lastUser = [...activeConversation.messages]
       .reverse()
       .find((m) => m.sender === 'user');
+
     if (lastUser) {
       setIsTyping(true);
-      const reply = generateSimulatedReply(lastUser.content);
-      setTimeout(() => {
+      setRetryHandler(() => () => handleRegenerateChat());
+
+      try {
+        if (simulateError) {
+          throw new AiServiceError(
+            'TIMEOUT',
+            'Simulated API Service connection timeout.',
+            504
+          );
+        }
+
+        const isCached = useCache && !!aiCache.get(lastUser.content);
+
+        let streamOutput = '';
         setIsTyping(false);
         setIsStreaming(true);
         setStreamedText('');
-        let idx = 0;
-        const timer = setInterval(() => {
-          if (idx < reply.length) {
-            setStreamedText((p) => p + reply.charAt(idx));
-            idx += 2;
-          } else {
-            clearInterval(timer);
-            setIsStreaming(false);
-            chatStore.addMessage(activeConversation.id, 'assistant', reply);
-            setStreamedText('');
-          }
-        }, 15);
-      }, 1000);
+
+        await AiService.generateStream(
+          { prompt: lastUser.content },
+          (chunk) => {
+            streamOutput += chunk.text;
+            setStreamedText(streamOutput);
+          },
+          { provider: 'mock', enableCache: useCache }
+        );
+
+        setIsStreaming(false);
+        chatStore.addMessage(activeConversation.id, 'assistant', streamOutput);
+        setStreamedText('');
+        logAiRequest('Regenerate Chat', lastUser.content, isCached);
+        setRetryHandler(null);
+      } catch (err) {
+        setIsTyping(false);
+        setIsStreaming(false);
+        setStreamedText('');
+        const message =
+          err instanceof Error ? err.message : 'An unknown error occurred.';
+        toast.error(`AI Error: ${message}`);
+      }
     }
   };
 
   // AI Flashcards Generator Logic
-  const handleGenerateFlashcards = () => {
+  const handleGenerateFlashcards = async () => {
     if (!fcSubjectId || !fcTopicId) {
       toast.error('Please select both a subject and a topic');
       return;
     }
 
+    const sub = academicStore.subjects.find((s) => s.id === fcSubjectId);
+    const top = academicStore.topics.find((t) => t.id === fcTopicId);
+    const subName = sub ? sub.name : 'Computer Science';
+    const topName = top ? top.title : 'General Study';
+
     setIsGeneratingFc(true);
-    setFcProgress(10);
-    setFcProgressText('Reading syllabus mappings...');
+    setFcProgress(15);
+    setFcProgressText('Constructing query context...');
     setIsSavedFc(false);
     setGeneratedFc([]);
+    setRetryHandler(() => () => handleGenerateFlashcards());
 
-    if (simulateError) {
-      setTimeout(() => {
-        setIsGeneratingFc(false);
-        toast.error('Generation failed: Simulated error state active.');
-      }, 1200);
-      return;
-    }
-
-    const steps = [
-      { p: 35, t: 'Scanning note templates...' },
-      { p: 70, t: 'Extracting QA concept definitions...' },
-      { p: 100, t: 'Structuring recall front/back decks...' },
-    ];
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < steps.length) {
-        const step = steps[currentStep];
-        if (step) {
-          setFcProgress(step.p);
-          setFcProgressText(step.t);
-        }
-        currentStep++;
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsGeneratingFc(false);
-          const mockCards: SimulatedFlashcard[] = [
-            {
-              front: `What is the core definition of the active topic?`,
-              back: `The topic is mapped to syllabus objectives for target review sessions.`,
-            },
-            {
-              front: `How does complexity scale for this concept?`,
-              back: `Understanding scales inversely with spaced repetition box transitions.`,
-            },
-            {
-              front: `What is a common pitfall of this topic?`,
-              back: `Failing to link parent/child concepts under unit components.`,
-            },
-          ];
-          setGeneratedFc(mockCards.slice(0, fcCount));
-          toast.success(`Successfully generated ${fcCount} flashcards!`);
-        }, 300);
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
+        );
       }
-    }, 450);
+
+      const stepTimer = setTimeout(() => {
+        setFcProgress(50);
+        setFcProgressText('Compiling schemas patterns...');
+      }, 300);
+
+      const prompt = PROMPT_TEMPLATES.generateFlashcards(
+        subName,
+        topName,
+        fcCount
+      );
+      const isCached = useCache && !!aiCache.get(prompt);
+
+      const res = await AiService.generateText(
+        { prompt },
+        { provider: 'mock', enableCache: useCache }
+      );
+
+      clearTimeout(stepTimer);
+      setFcProgress(100);
+      setFcProgressText('Success');
+      setIsGeneratingFc(false);
+
+      const parsedCards = JSON.parse(res.text) as SimulatedFlashcard[];
+      setGeneratedFc(parsedCards);
+      logAiRequest('Flashcard Gen', prompt, isCached);
+      toast.success(`Successfully generated ${parsedCards.length} flashcards!`);
+      setRetryHandler(null);
+    } catch (err) {
+      setIsGeneratingFc(false);
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
   const handleSaveFlashcards = () => {
@@ -649,89 +641,65 @@ In Big O, what is the average complexity of finding an item in a hash table?
   };
 
   // AI Quiz Generator Logic
-  const handleGenerateQuiz = () => {
+  const handleGenerateQuiz = async () => {
     if (!quizSubjectId || !quizTopicId) {
       toast.error('Select both a subject and a topic to generate');
       return;
     }
 
+    const sub = academicStore.subjects.find((s) => s.id === quizSubjectId);
+    const top = academicStore.topics.find((t) => t.id === quizTopicId);
+    const subName = sub ? sub.name : 'Computer Science';
+    const topName = top ? top.title : 'General Study';
+
     setIsGeneratingQuiz(true);
-    setQuizProgress(10);
+    setQuizProgress(15);
     setQuizProgressText('Compiling CS test bank items...');
     setQuizComplete(false);
     setGeneratedQuiz([]);
     setActiveQuizIndex(0);
     setSelectedQuizOption(null);
     setQuizScore(0);
+    setRetryHandler(() => () => handleGenerateQuiz());
 
-    if (simulateError) {
-      setTimeout(() => {
-        setIsGeneratingQuiz(false);
-        toast.error('Generation failed: Simulated error state active.');
-      }, 1200);
-      return;
-    }
-
-    const steps = [
-      { p: 40, t: 'Aligning with difficulty scale...' },
-      { p: 75, t: 'Synthesizing distractor options...' },
-      { p: 100, t: 'Writing explanations...' },
-    ];
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      if (currentStep < steps.length) {
-        const step = steps[currentStep];
-        if (step) {
-          setQuizProgress(step.p);
-          setQuizProgressText(step.t);
-        }
-        currentStep++;
-      } else {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsGeneratingQuiz(false);
-          const mockQuestions: SimulatedQuizQuestion[] = [
-            {
-              question:
-                'Which of the following describes a balanced search algorithm parameter?',
-              options: ['O(1)', 'O(log N)', 'O(N)', 'O(N^2)'],
-              correctAnswer: 'O(log N)',
-              explanation:
-                'Logarithmic complexities represent perfect binary partitions.',
-            },
-            {
-              question:
-                'What happens when transitive dependency exists on non-key attributes?',
-              options: [
-                'Schema is in 3NF',
-                'Schema violates 3NF',
-                'Schema is in BCNF',
-                'No anomaly happens',
-              ],
-              correctAnswer: 'Schema violates 3NF',
-              explanation:
-                'Transitive dependencies must be split into separate reference relations.',
-            },
-            {
-              question:
-                'Which scheduling system resets repetitions to 0 on failure?',
-              options: [
-                'SuperMemo-2 (SM-2)',
-                'Leitner System',
-                'Anki Box',
-                'None of above',
-              ],
-              correctAnswer: 'SuperMemo-2 (SM-2)',
-              explanation:
-                'SM-2 resets repetitions count if quality rating is less than 3.',
-            },
-          ];
-          setGeneratedQuiz(mockQuestions);
-          toast.success('AI Interactive Quiz Generated!');
-        }, 300);
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
+        );
       }
-    }, 400);
+
+      const stepTimer = setTimeout(() => {
+        setQuizProgress(50);
+        setQuizProgressText('Formulating distractor keys...');
+      }, 300);
+
+      const prompt = PROMPT_TEMPLATES.generateQuiz(subName, topName, 3);
+      const isCached = useCache && !!aiCache.get(prompt);
+
+      const res = await AiService.generateText(
+        { prompt },
+        { provider: 'mock', enableCache: useCache }
+      );
+
+      clearTimeout(stepTimer);
+      setQuizProgress(100);
+      setQuizProgressText('Success');
+      setIsGeneratingQuiz(false);
+
+      const parsedQuiz = JSON.parse(res.text) as SimulatedQuizQuestion[];
+      setGeneratedQuiz(parsedQuiz);
+      logAiRequest('Quiz Gen', prompt, isCached);
+      toast.success('AI Interactive Quiz Generated!');
+      setRetryHandler(null);
+    } catch (err) {
+      setIsGeneratingQuiz(false);
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
   const handleSelectQuizOption = (option: string) => {
@@ -762,8 +730,8 @@ In Big O, what is the average complexity of finding an item in a hash table?
     }
   };
 
-  // AI Notes Summarizer Logic
-  const handleSummarizeNote = () => {
+  // AI Notes Summary Logic
+  const handleSummarizeNote = async () => {
     if (!selectedNoteId) {
       toast.error('Select a study note to summarize');
       return;
@@ -772,25 +740,40 @@ In Big O, what is the average complexity of finding an item in a hash table?
     if (!note) return;
 
     setIsSummarizing(true);
+    setNoteSummary(null);
+    setRetryHandler(() => () => handleSummarizeNote());
 
-    if (simulateError) {
-      setTimeout(() => {
-        setIsSummarizing(false);
-        toast.error('Summarizer failed: Simulated error state active.');
-      }, 1000);
-      return;
-    }
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
+        );
+      }
 
-    setTimeout(() => {
+      const prompt = PROMPT_TEMPLATES.summarizeNotes(
+        note.title,
+        note.content || ''
+      );
+      const isCached = useCache && !!aiCache.get(prompt);
+
+      const res = await AiService.generateText(
+        { prompt },
+        { provider: 'mock', enableCache: useCache }
+      );
+
       setIsSummarizing(false);
-      const summaryText = `### AI Synthesis Summary: ${note.title}
-**Key Takeaways:**
-1. **Core Concept**: Focus on separating functional layers or algorithms into isolated modules.
-2. **Spaced Repetition Target**: Flagged as high-value recall curriculum items.
-3. **Action Items**: Practice coding implementation parameters.`;
-      setNoteSummary(summaryText);
+      setNoteSummary(res.text);
+      logAiRequest('Note Summary', prompt, isCached);
       toast.success('Summary generated successfully!');
-    }, 1000);
+      setRetryHandler(null);
+    } catch (err) {
+      setIsSummarizing(false);
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
   const handleSaveSummaryToResources = () => {
@@ -807,38 +790,68 @@ In Big O, what is the average complexity of finding an item in a hash table?
   };
 
   // AI Topic Explanation Logic
-  const handleExplainTopic = () => {
+  const handleExplainTopic = async () => {
     if (!explainSubjectId || !explainTopicId) {
       toast.error('Select a subject and a topic to explain');
-      return;
-    }
-
-    setIsExplaining(true);
-    setExplanationContent(null);
-
-    if (simulateError) {
-      setTimeout(() => {
-        setIsExplaining(false);
-        toast.error('Explanation failed: Simulated error state active.');
-      }, 1000);
       return;
     }
 
     const targetTopic = academicStore.topics.find(
       (t) => t.id === explainTopicId
     );
+    const topTitle = targetTopic ? targetTopic.title : 'General Concept';
 
-    setTimeout(() => {
+    setIsExplaining(true);
+    setExplanationContent(null);
+    setRetryHandler(() => () => handleExplainTopic());
+
+    try {
+      if (simulateError) {
+        throw new AiServiceError(
+          'TIMEOUT',
+          'Simulated API Service connection timeout.',
+          504
+        );
+      }
+
+      const promptEl5 = PROMPT_TEMPLATES.explainConcept(topTitle, 'simple');
+      const promptDeep = PROMPT_TEMPLATES.explainConcept(topTitle, 'deep');
+      const promptAnalogy = PROMPT_TEMPLATES.explainConcept(
+        topTitle,
+        'analogy'
+      );
+
+      const isCached = useCache && !!aiCache.get(promptEl5);
+
+      const resEl5 = await AiService.generateText(
+        { prompt: promptEl5 },
+        { provider: 'mock', enableCache: useCache }
+      );
+      const resDeep = await AiService.generateText(
+        { prompt: promptDeep },
+        { provider: 'mock', enableCache: useCache }
+      );
+      const resAnalogy = await AiService.generateText(
+        { prompt: promptAnalogy },
+        { provider: 'mock', enableCache: useCache }
+      );
+
       setIsExplaining(false);
       setExplanationContent({
-        el5: `Imagine you have a stack of boxes. Instead of searching every box from the beginning to find your toy (O(N) search), you split the stack in half each time and throw away the wrong half. This is O(log N) search!`,
-        deepDive: `Mathematically, O(log N) describes growth scaling with the logarithm base 2. In tree traversals, the depth is $\\log_2 N$. Accessing elements in a balanced BST requires exactly $\\Theta(\\log N)$ worst case tree depth traversals.`,
-        analogy: `It&apos;s like looking up a word in a physical dictionary. You don&apos;t read page 1, then page 2. You open to the middle, decide if the word is before or after, and split the remaining dictionary in half.`,
+        el5: resEl5.text,
+        deepDive: resDeep.text,
+        analogy: resAnalogy.text,
       });
-      toast.success(
-        `Concept explanation loaded for: ${targetTopic ? targetTopic.title : 'Topic'}`
-      );
-    }, 1200);
+
+      logAiRequest('Concept Explainer', promptEl5, isCached);
+      toast.success(`Concept explanation loaded for: ${topTitle}`);
+      setRetryHandler(null);
+    } catch (err) {
+      setIsExplaining(false);
+      const message =
+        err instanceof Error ? err.message : 'An unknown error occurred.';
+      toast.error(`AI Error: ${message}`);
+    }
   };
 
   if (!isMounted) {
@@ -860,16 +873,29 @@ In Big O, what is the average complexity of finding an item in a hash table?
         title="AI Mentor Workspace"
         subtitle="Simulate AI study chat sessions, flashcard deck creation, interactive quizzes, and summaries."
         actions={
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase">
-              Simulate API Errors:
-            </span>
-            <input
-              type="checkbox"
-              checked={simulateError}
-              onChange={(e) => setSimulateError(e.target.checked)}
-              className="rounded border-input text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
-            />
+          <div className="flex items-center gap-4 bg-muted/40 px-3.5 py-1.5 rounded-lg border border-border">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                Simulate API Errors:
+              </span>
+              <input
+                type="checkbox"
+                checked={simulateError}
+                onChange={(e) => setSimulateError(e.target.checked)}
+                className="rounded border-input text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+              />
+            </div>
+            <div className="flex items-center gap-2 border-l border-border pl-4">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                Use cache layer:
+              </span>
+              <input
+                type="checkbox"
+                checked={useCache}
+                onChange={(e) => setUseCache(e.target.checked)}
+                className="rounded border-input text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+              />
+            </div>
           </div>
         }
       />
@@ -896,6 +922,62 @@ In Big O, what is the average complexity of finding an item in a hash table?
           </button>
         ))}
       </div>
+
+      {/* Retry warnings alert */}
+      {retryHandler && (
+        <div className="p-3 border border-red-500/20 bg-red-500/5 rounded-xl flex items-center justify-between text-xs max-w-2xl">
+          <span className="text-muted-foreground flex items-center gap-1.5">
+            <AlertTriangle className="h-4 w-4 text-red-500 animate-pulse" />
+            Last AI task failed. Click retry to run again.
+          </span>
+          <Button
+            size="xs"
+            onClick={() => retryHandler()}
+            className="bg-red-600 hover:bg-red-700 text-white gap-1 text-[10px] h-7"
+          >
+            <RotateCw className="h-3 w-3" /> Retry Request
+          </Button>
+        </div>
+      )}
+
+      {/* Telemetry Log panel */}
+      {requestLogs.length > 0 && (
+        <div className="p-4 border border-border bg-card/65 rounded-xl space-y-2.5 max-w-5xl">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+            <History className="h-3.5 w-3.5 text-purple-600" /> Recent AI
+            Request Telemetry Logs
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {requestLogs.map((log) => (
+              <div
+                key={log.id}
+                className="p-2 border border-border bg-muted/20 rounded-lg text-[10px] leading-normal flex items-start justify-between"
+              >
+                <div>
+                  <p className="font-bold text-foreground">{log.action}</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5 truncate max-w-[150px]">
+                    {log.prompt}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                      log.cached
+                        ? 'bg-emerald-500/10 text-emerald-600'
+                        : 'bg-purple-500/10 text-purple-600'
+                    }`}
+                  >
+                    {log.cached ? 'Cache Hit' : 'API Request'}
+                  </span>
+                  <p className="text-[8px] text-muted-foreground mt-1 font-mono">
+                    {log.timestamp}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {/* TAB 1: AI Chat Tutor */}
