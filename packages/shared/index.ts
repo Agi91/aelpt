@@ -11,3 +11,6 @@ export * from './src/types/progress.types';
 export * from './src/types/flashcard.types';
 export * from './src/schemas/deck.schema';
 export * from './src/schemas/flashcard.schema';
+export * from './src/types/notes.types';
+export * from './src/schemas/note.schema';
+export * from './src/schemas/resource.schema';
