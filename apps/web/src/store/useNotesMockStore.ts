@@ -22,6 +22,17 @@ interface NotesMockState {
   addResource: (res: CreateResourceInput) => string;
   updateResource: (id: string, res: Partial<CreateResourceInput>) => void;
   deleteResource: (id: string) => void;
+  toggleBookmarkResource: (id: string) => void;
+  toggleFavoriteResource: (id: string) => void;
+  addResourceTags: (id: string, tags: string[]) => void;
+  markResourceViewed: (id: string) => void;
+  addMockFileAttachment: (
+    title: string,
+    size: string,
+    type: string,
+    subjectId?: string,
+    topicId?: string
+  ) => void;
 
   resetNotesStore: () => void;
 }
@@ -79,8 +90,11 @@ const DEFAULT_RESOURCES: Resource[] = [
     description:
       'Comprehensive dynamic programming guide, basic-to-advanced algorithms, optimization subproblems, and practice links.',
     category: 'WEBSITE',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    isBookmarked: true,
+    isFavorite: true,
+    tags: ['dsa', 'core'],
   },
   {
     id: 'res_2',
@@ -89,8 +103,11 @@ const DEFAULT_RESOURCES: Resource[] = [
     description:
       'Core reference textbook covering search, sorting, graph traversal, and complexity classes.',
     category: 'BOOK',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    isBookmarked: false,
+    isFavorite: true,
+    tags: ['textbook'],
   },
   {
     id: 'res_3',
@@ -100,8 +117,11 @@ const DEFAULT_RESOURCES: Resource[] = [
     description:
       'Video tutorial breaking down normalization steps from 1NF to BCNF with concrete tables.',
     category: 'VIDEO',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    isBookmarked: true,
+    isFavorite: false,
+    tags: ['dbms', 'video'],
   },
 ];
 
@@ -167,6 +187,9 @@ export const useNotesMockStore = create<NotesMockState>()(
             userId: 'mock-user',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            isBookmarked: false,
+            isFavorite: false,
+            tags: [],
           };
           return { resources: [newRes, ...state.resources] };
         });
@@ -187,6 +210,61 @@ export const useNotesMockStore = create<NotesMockState>()(
         set((state) => ({
           resources: state.resources.filter((r) => r.id !== id),
         }));
+      },
+
+      toggleBookmarkResource: (id) => {
+        set((state) => ({
+          resources: state.resources.map((r) =>
+            r.id === id ? { ...r, isBookmarked: !r.isBookmarked } : r
+          ),
+        }));
+      },
+
+      toggleFavoriteResource: (id) => {
+        set((state) => ({
+          resources: state.resources.map((r) =>
+            r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
+          ),
+        }));
+      },
+
+      addResourceTags: (id, tags) => {
+        set((state) => ({
+          resources: state.resources.map((r) =>
+            r.id === id ? { ...r, tags } : r
+          ),
+        }));
+      },
+
+      markResourceViewed: (id) => {
+        set((state) => ({
+          resources: state.resources.map((r) =>
+            r.id === id ? { ...r, lastViewedAt: new Date().toISOString() } : r
+          ),
+        }));
+      },
+
+      addMockFileAttachment: (title, size, type, subjectId, topicId) => {
+        const id = `res_${Date.now()}`;
+        set((state) => {
+          const newRes: Resource = {
+            id,
+            userId: 'mock-user',
+            title,
+            category: type.toLowerCase().includes('pdf') ? 'PDF' : 'OTHER',
+            description: `Simulated local file upload attachment. Format: ${type.toUpperCase()}`,
+            fileSize: size,
+            fileType: type,
+            isBookmarked: false,
+            isFavorite: false,
+            tags: ['uploaded'],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            ...(subjectId ? { subjectId } : {}),
+            ...(topicId ? { topicId } : {}),
+          };
+          return { resources: [newRes, ...state.resources] };
+        });
       },
 
       resetNotesStore: () => {

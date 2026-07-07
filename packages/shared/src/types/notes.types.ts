@@ -22,6 +22,12 @@ export interface Resource {
   category: 'BOOK' | 'VIDEO' | 'WEBSITE' | 'PDF' | 'OTHER';
   createdAt: string;
   updatedAt: string;
+  isBookmarked: boolean;
+  isFavorite: boolean;
+  tags: string[];
+  fileSize?: string;
+  fileType?: string;
+  lastViewedAt?: string;
 }
 
 export type CreateNoteInput = Omit<
@@ -30,5 +36,14 @@ export type CreateNoteInput = Omit<
 >;
 export type CreateResourceInput = Omit<
   Resource,
-  'id' | 'userId' | 'createdAt' | 'updatedAt'
+  | 'id'
+  | 'userId'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'isBookmarked'
+  | 'isFavorite'
+  | 'tags'
+  | 'fileSize'
+  | 'fileType'
+  | 'lastViewedAt'
 >;
