@@ -17,6 +17,8 @@ interface NotesMockState {
   deleteNote: (id: string) => void;
   togglePinNote: (id: string) => void;
   toggleFavoriteNote: (id: string) => void;
+  toggleArchiveNote: (id: string) => void;
+  addNoteTags: (id: string, tags: string[]) => void;
 
   // Resource Actions
   addResource: (res: CreateResourceInput) => string;
@@ -61,6 +63,8 @@ const DEFAULT_NOTES: Note[] = [
     isFavorite: true,
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    tags: ['networks', 'osi'],
+    isArchived: false,
   },
   {
     id: 'note_2',
@@ -78,6 +82,8 @@ Requires O(log n) auxiliary stack space for recursion frames.`,
     isFavorite: false,
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    tags: ['algorithms', 'sorting'],
+    isArchived: false,
   },
 ];
 
@@ -140,6 +146,8 @@ export const useNotesMockStore = create<NotesMockState>()(
             userId: 'mock-user',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            tags: [],
+            isArchived: false,
           };
           return { notes: [newNote, ...state.notes] };
         });
@@ -175,6 +183,20 @@ export const useNotesMockStore = create<NotesMockState>()(
           notes: state.notes.map((n) =>
             n.id === id ? { ...n, isFavorite: !n.isFavorite } : n
           ),
+        }));
+      },
+
+      toggleArchiveNote: (id) => {
+        set((state) => ({
+          notes: state.notes.map((n) =>
+            n.id === id ? { ...n, isArchived: !n.isArchived } : n
+          ),
+        }));
+      },
+
+      addNoteTags: (id, tags) => {
+        set((state) => ({
+          notes: state.notes.map((n) => (n.id === id ? { ...n, tags } : n)),
         }));
       },
 

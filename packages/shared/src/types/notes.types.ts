@@ -9,6 +9,8 @@ export interface Note {
   isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
+  tags: string[];
+  isArchived: boolean;
 }
 
 export interface Resource {
@@ -32,7 +34,7 @@ export interface Resource {
 
 export type CreateNoteInput = Omit<
   Note,
-  'id' | 'userId' | 'createdAt' | 'updatedAt'
+  'id' | 'userId' | 'createdAt' | 'updatedAt' | 'tags' | 'isArchived'
 >;
 export type CreateResourceInput = Omit<
   Resource,
