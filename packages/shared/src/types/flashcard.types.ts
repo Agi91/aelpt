@@ -20,6 +20,19 @@ export interface Flashcard {
   lastReviewDate?: string;
   createdAt: string;
   updatedAt: string;
+  reps: number; // SM-2 consecutive correct repetitions
+  easeFactor: number; // SM-2 ease factor (default 2.5)
+  interval: number; // SM-2 interval in days
+}
+
+export interface ReviewHistoryEntry {
+  id: string;
+  cardId: string;
+  userId: string;
+  reviewedAt: string;
+  rating: 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';
+  interval: number;
+  easeFactor: number;
 }
 
 export type CreateDeckInput = Omit<
@@ -35,4 +48,7 @@ export type CreateFlashcardInput = Omit<
   | 'lastReviewDate'
   | 'createdAt'
   | 'updatedAt'
+  | 'reps'
+  | 'easeFactor'
+  | 'interval'
 >;

@@ -18,6 +18,7 @@ import {
   Zap,
   Award,
   Play,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import {
 } from '@/components/common';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
+import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -39,6 +41,11 @@ export default function DashboardPage() {
   const { semesters, subjects, units, topics } = useAcademicMockStore();
   const { streakCount, dailyActivities, activityLogs, achievements } =
     useProgressMockStore();
+  const { flashcards } = useFlashcardMockStore();
+
+  const dueCount = flashcards.filter(
+    (c) => new Date(c.nextReviewDate) <= new Date() || c.reps === 0
+  ).length;
 
   const [simulationEmpty, setSimulationEmpty] = useState<boolean | null>(null);
   const isEmptyState =
@@ -181,6 +188,38 @@ export default function DashboardPage() {
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* LEFT COLUMN: Study Progress & Activity */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Spaced Repetition Due Today Banner Widget */}
+          {dueCount > 0 && !isEmptyState && (
+            <Card className="border-purple-600/30 bg-purple-500/5 dark:bg-purple-950/10">
+              <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400">
+                    <Clock className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">
+                      Spaced Repetition Review Due
+                    </h4>
+                    <p className="text-xs text-muted-foreground leading-normal mt-0.5">
+                      You have{' '}
+                      <span className="text-rose-500 font-bold">
+                        {dueCount} flashcards
+                      </span>{' '}
+                      scheduled for review today using the SM-2 algorithm.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => router.push(ROUTES.FLASHCARDS)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-9 shrink-0 gap-1"
+                >
+                  Start Review
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Study Progress Section */}
           <Card className="border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
