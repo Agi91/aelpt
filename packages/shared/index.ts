@@ -14,3 +14,5 @@ export * from './src/schemas/flashcard.schema';
 export * from './src/types/notes.types';
 export * from './src/schemas/note.schema';
 export * from './src/schemas/resource.schema';
+export * from './src/types/ai.types';
+export * from './src/schemas/ai.schema';
