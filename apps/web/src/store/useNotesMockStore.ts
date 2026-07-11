@@ -5,11 +5,17 @@ import {
   Resource,
   CreateNoteInput,
   CreateResourceInput,
+  NoteChunk,
+  IEmbeddingStore,
+  MockEmbeddingProvider,
+  EmbeddingCache,
+  EmbeddingService,
 } from '@aelpt/shared';
 
 interface NotesMockState {
   notes: Note[];
   resources: Resource[];
+  chunks: NoteChunk[];
 
   // Note Actions
   addNote: (note: CreateNoteInput) => string;
@@ -19,6 +25,8 @@ interface NotesMockState {
   toggleFavoriteNote: (id: string) => void;
   toggleArchiveNote: (id: string) => void;
   addNoteTags: (id: string, tags: string[]) => void;
+  saveChunks: (noteId: string, chunks: NoteChunk[]) => void;
+  deleteChunks: (noteId: string) => void;
 
   // Resource Actions
   addResource: (res: CreateResourceInput) => string;
@@ -131,11 +139,54 @@ const DEFAULT_RESOURCES: Resource[] = [
   },
 ];
 
+// Zustand Store Bridge for note embeddings
+class ZustandEmbeddingStore implements IEmbeddingStore {
+  async saveChunks(noteId: string, chunks: NoteChunk[]): Promise<void> {
+    useNotesMockStore.getState().saveChunks(noteId, chunks);
+  }
+  async getChunks(noteId: string): Promise<NoteChunk[]> {
+    return useNotesMockStore
+      .getState()
+      .chunks.filter((c) => c.noteId === noteId);
+  }
+  async deleteChunks(noteId: string): Promise<void> {
+    useNotesMockStore.getState().deleteChunks(noteId);
+  }
+}
+
+const clientStore = new ZustandEmbeddingStore();
+const clientProvider = new MockEmbeddingProvider();
+const clientCache = new EmbeddingCache();
+const clientEmbeddingService = new EmbeddingService(
+  clientProvider,
+  clientStore,
+  clientCache
+);
+
+export const triggerEmbeddingForNote = async (
+  noteId: string,
+  content: string,
+  topicId?: string,
+  oldContent?: string
+) => {
+  try {
+    await clientEmbeddingService.embedNote(
+      noteId,
+      content,
+      topicId,
+      oldContent
+    );
+  } catch (err) {
+    console.error('Failed to generate embedding for note:', noteId, err);
+  }
+};
+
 export const useNotesMockStore = create<NotesMockState>()(
   persist(
     (set) => ({
       notes: DEFAULT_NOTES,
       resources: DEFAULT_RESOURCES,
+      chunks: [],
 
       addNote: (note) => {
         const id = `note_${Date.now()}`;
@@ -149,25 +200,55 @@ export const useNotesMockStore = create<NotesMockState>()(
             tags: [],
             isArchived: false,
           };
+
+          // Trigger embedding generation asynchronously
+          setTimeout(() => {
+            triggerEmbeddingForNote(id, note.content, note.topicId);
+          }, 50);
+
           return { notes: [newNote, ...state.notes] };
         });
         return id;
       },
 
       updateNote: (id, note) => {
-        set((state) => ({
-          notes: state.notes.map((n) =>
-            n.id === id
-              ? { ...n, ...note, updatedAt: new Date().toISOString() }
-              : n
-          ),
-        }));
+        set((state) => {
+          const existing = state.notes.find((n) => n.id === id);
+          const oldContent = existing?.content || '';
+
+          // Trigger embedding generation asynchronously if content has changed
+          if (note.content !== undefined && note.content !== oldContent) {
+            setTimeout(() => {
+              triggerEmbeddingForNote(
+                id,
+                note.content!,
+                note.topicId || existing?.topicId,
+                oldContent
+              );
+            }, 50);
+          }
+
+          return {
+            notes: state.notes.map((n) =>
+              n.id === id
+                ? { ...n, ...note, updatedAt: new Date().toISOString() }
+                : n
+            ),
+          };
+        });
       },
 
       deleteNote: (id) => {
-        set((state) => ({
-          notes: state.notes.filter((n) => n.id !== id),
-        }));
+        set((state) => {
+          // Trigger deletion of note chunks
+          setTimeout(() => {
+            clientStore.deleteChunks(id).catch(console.error);
+          }, 50);
+
+          return {
+            notes: state.notes.filter((n) => n.id !== id),
+          };
+        });
       },
 
       togglePinNote: (id) => {
@@ -197,6 +278,21 @@ export const useNotesMockStore = create<NotesMockState>()(
       addNoteTags: (id, tags) => {
         set((state) => ({
           notes: state.notes.map((n) => (n.id === id ? { ...n, tags } : n)),
+        }));
+      },
+
+      saveChunks: (noteId, noteChunks) => {
+        set((state) => ({
+          chunks: [
+            ...state.chunks.filter((c) => c.noteId !== noteId),
+            ...noteChunks,
+          ],
+        }));
+      },
+
+      deleteChunks: (noteId) => {
+        set((state) => ({
+          chunks: state.chunks.filter((c) => c.noteId !== noteId),
         }));
       },
 
@@ -293,6 +389,7 @@ export const useNotesMockStore = create<NotesMockState>()(
         set({
           notes: DEFAULT_NOTES,
           resources: DEFAULT_RESOURCES,
+          chunks: [],
         });
       },
     }),
