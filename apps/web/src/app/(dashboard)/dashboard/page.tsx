@@ -44,6 +44,7 @@ import { useProgressMockStore } from '@/store/useProgressMockStore';
 import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
 import { useRecommendationMockStore } from '@/store/useRecommendationMockStore';
 import { useGamificationMockStore } from '@/store/useGamificationMockStore';
+import { usePlannerMockStore } from '@/store/usePlannerMockStore';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -60,6 +61,18 @@ export default function DashboardPage() {
     weeklyChallenges,
     xp,
   } = useGamificationMockStore();
+  const { tasks: plannerTasks, goals: plannerGoals } = usePlannerMockStore();
+
+  const todayStr = new Date().toISOString().split('T')[0]!;
+  const todayPlannerGoal = plannerGoals.find((g) => g.date === todayStr);
+  const plannerGoalTarget = todayPlannerGoal?.targetMinutes || 60;
+  const plannerGoalAchieved = todayPlannerGoal?.achievedMinutes || 0;
+
+  const activePlannerTasks = plannerTasks.filter(
+    (t) => t.status !== 'COMPLETED' && t.status !== 'ARCHIVED'
+  );
+  const nextPlannerTask = activePlannerTasks[0];
+  const upcomingDeadlines = activePlannerTasks.slice(0, 3);
 
   const dueCount = flashcards.filter(
     (c) => new Date(c.nextReviewDate) <= new Date() || c.reps === 0
@@ -342,6 +355,106 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Today's Planner Goals & Deadlines Widget */}
+          {!isEmptyState && (
+            <Card className="border border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <SectionHeader
+                  title="Today's Planner Goals & Deadlines"
+                  subtitle="Track scheduled study tasks and completion metrics"
+                  className="mb-0"
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-purple-600 dark:text-purple-400 hover:bg-transparent p-0"
+                  onClick={() => router.push(ROUTES.PLANNER)}
+                >
+                  Go to Planner
+                  <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4 text-xs pt-1">
+                {/* Today's Goal Progress bar */}
+                <div className="space-y-2 p-3 rounded-lg border border-border bg-card/60">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-semibold text-muted-foreground flex items-center gap-1">
+                      <Timer className="h-3.5 w-3.5 text-purple-600" />{' '}
+                      {"Today's Focus Goal"}
+                    </span>
+                    <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-full">
+                      {plannerGoalAchieved}m / {plannerGoalTarget}m focused
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, Math.round((plannerGoalAchieved / plannerGoalTarget) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Next Task */}
+                  <div className="space-y-2">
+                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                      Next Study Task
+                    </p>
+                    {nextPlannerTask ? (
+                      <div className="p-2.5 border border-border/50 rounded-lg bg-card flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-foreground truncate">
+                            {nextPlannerTask.title}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {nextPlannerTask.description}
+                          </p>
+                        </div>
+                        <span className="text-[9px] bg-purple-500/10 text-purple-600 font-bold px-1.5 py-0.5 rounded shrink-0 ml-2">
+                          {nextPlannerTask.estimatedTime}m
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground text-xs italic">
+                        All planner tasks completed.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Upcoming Deadlines */}
+                  <div className="space-y-2">
+                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                      Upcoming Deadlines
+                    </p>
+                    <div className="space-y-1.5">
+                      {upcomingDeadlines.length > 0 ? (
+                        upcomingDeadlines.map((t) => (
+                          <div
+                            key={t.id}
+                            className="flex justify-between items-center text-[11px] border-b border-border/40 pb-1"
+                          >
+                            <span className="text-foreground truncate pr-2">
+                              {t.title}
+                            </span>
+                            <span className="text-purple-600 font-bold shrink-0">
+                              {t.dueDate}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground text-xs italic">
+                          No upcoming deadlines.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recent Activity Section */}
           <Card className="border-border">
