@@ -34,6 +34,7 @@ export const ROUTES = {
   RESOURCES: '/resources',
   REVISION: '/revision',
   SEARCH: '/search',
+  QUIZ: '/quiz',
 
   // AI Features
   AI_MENTOR: '/ai-mentor',
@@ -66,6 +67,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Flashcards', href: ROUTES.FLASHCARDS, iconName: 'Layers' },
   { label: 'Resources', href: ROUTES.RESOURCES, iconName: 'FolderOpen' },
   { label: 'Revision', href: ROUTES.REVISION, iconName: 'RefreshCw' },
+  { label: 'Interactive Quiz', href: ROUTES.QUIZ, iconName: 'HelpCircle' },
   { label: 'Semantic Search', href: ROUTES.SEARCH, iconName: 'Search' },
   { label: 'AI Mentor', href: ROUTES.AI_MENTOR, iconName: 'Sparkles' },
   { label: 'Analytics', href: ROUTES.ANALYTICS, iconName: 'BarChart2' },

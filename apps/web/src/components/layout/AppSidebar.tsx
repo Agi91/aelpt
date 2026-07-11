@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Flame,
   Search,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS } from '@/lib/constants/routes';
@@ -45,6 +46,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Heart,
   Settings,
   Search,
+  HelpCircle,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

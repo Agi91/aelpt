@@ -25,3 +25,6 @@ export * from './src/utils/embedding-cache';
 export * from './src/utils/embedding-service';
 export * from './src/types/vector-search.types';
 export * from './src/utils/vector-search-service';
+export * from './src/types/quiz.types';
+export * from './src/schemas/quiz.schema';
+export * from './src/utils/quiz-generator';
