@@ -31,3 +31,6 @@ export * from './src/utils/quiz-generator';
 export * from './src/types/recommendation.types';
 export * from './src/schemas/recommendation.schema';
 export * from './src/utils/recommendation-engine';
+export * from './src/types/gamification.types';
+export * from './src/schemas/gamification.schema';
+export * from './src/utils/gamification-engine';

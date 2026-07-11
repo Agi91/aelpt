@@ -15,8 +15,6 @@ import {
   Timer,
   PlusCircle,
   Database,
-  Zap,
-  Award,
   Play,
   Clock,
 } from 'lucide-react';
@@ -35,15 +33,23 @@ import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
 import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
 import { useRecommendationMockStore } from '@/store/useRecommendationMockStore';
+import { useGamificationMockStore } from '@/store/useGamificationMockStore';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { profile } = useAuth();
   const { semesters, subjects, units, topics } = useAcademicMockStore();
-  const { streakCount, dailyActivities, activityLogs, achievements } =
-    useProgressMockStore();
+  const { streakCount, dailyActivities, activityLogs } = useProgressMockStore();
   const { flashcards } = useFlashcardMockStore();
   const { suggestions, dailyPlan } = useRecommendationMockStore();
+  const {
+    level,
+    title,
+    progressPercent,
+    dailyChallenges,
+    weeklyChallenges,
+    xp,
+  } = useGamificationMockStore();
 
   const dueCount = flashcards.filter(
     (c) => new Date(c.nextReviewDate) <= new Date() || c.reps === 0
@@ -518,77 +524,154 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Achievements & Milestones */}
+          {/* Gamification, Challenges & Leaderboard Dashboard widgets */}
+          <Card className="border-border">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+              <SectionHeader title="Level & XP Progression" className="mb-0" />
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
+                onClick={() => router.push('/achievements')}
+              >
+                Milestones
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-1 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 font-extrabold text-lg">
+                  {level}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-foreground">
+                    Level {level}: {title}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {xp} total XP. {1000 - (xp % 1000)} XP to next level
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
+                  <span>LEVEL PROGRESS</span>
+                  <span>{progressPercent}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Daily & Weekly Challenges Checklist */}
           <Card className="border-border">
             <CardHeader className="pb-2">
-              <SectionHeader
-                title="Achievements & Milestones"
-                className="mb-0"
-              />
+              <SectionHeader title="Active Challenges" className="mb-0" />
             </CardHeader>
-            <CardContent className="space-y-3">
-              {isEmptyState ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No active milestones
+            <CardContent className="space-y-3.5 pt-1 text-xs">
+              {/* Daily */}
+              <div className="space-y-2">
+                <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                  Daily Challenge
                 </p>
-              ) : (
-                achievements.map((ach) => {
-                  const IconComponent =
-                    ach.icon === 'Zap'
-                      ? Zap
-                      : ach.icon === 'Brain'
-                        ? Brain
-                        : ach.icon === 'Award'
-                          ? Award
-                          : BookOpen;
-                  const isUnlocked = ach.unlockedAt !== undefined;
-                  return (
-                    <div
-                      key={ach.id}
-                      className="space-y-1.5 p-3 rounded-lg border border-border bg-card"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs ${
-                            isUnlocked
-                              ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400'
-                              : 'bg-muted text-muted-foreground'
-                          }`}
-                        >
-                          <IconComponent className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex justify-between items-start">
-                            <p className="text-xs font-semibold text-foreground truncate">
-                              {ach.title}
-                            </p>
-                            {isUnlocked ? (
-                              <span className="text-[9px] bg-green-500/10 text-green-700 dark:text-green-400 px-1.5 py-0.2 rounded-full font-bold">
-                                Unlocked
-                              </span>
-                            ) : (
-                              <span className="text-[9px] text-muted-foreground font-medium">
-                                {ach.progress}%
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {ach.description}
-                          </p>
-                        </div>
-                      </div>
-                      {!isUnlocked && (
-                        <div className="h-1 w-full bg-border rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-purple-600 rounded-full"
-                            style={{ width: `${ach.progress}%` }}
-                          />
-                        </div>
-                      )}
+                {dailyChallenges.slice(0, 2).map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-muted-foreground">
+                        {c.description}
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {c.currentCount}/{c.targetCount}
+                      </span>
                     </div>
-                  );
-                })
-              )}
+                    <div className="h-1 w-full bg-border rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 rounded-full"
+                        style={{
+                          width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Weekly */}
+              <div className="space-y-2 border-t border-border/40 pt-3">
+                <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                  Weekly Challenge
+                </p>
+                {weeklyChallenges.slice(0, 2).map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-muted-foreground">
+                        {c.description}
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {c.currentCount}/{c.targetCount}
+                      </span>
+                    </div>
+                    <div className="h-1 w-full bg-border rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full"
+                        style={{
+                          width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Mock Leaderboard Preview widget */}
+          <Card className="border-border">
+            <CardHeader className="pb-2">
+              <SectionHeader title="Class Leaderboard" className="mb-0" />
+            </CardHeader>
+            <CardContent className="space-y-2.5 pt-1 text-xs">
+              {[
+                { rank: 1, name: 'Alice', level: 8, xp: 7200, avatar: 'A' },
+                { rank: 2, name: 'Bob', level: 6, xp: 5400, avatar: 'B' },
+                {
+                  rank: 3,
+                  name: 'You',
+                  level,
+                  xp,
+                  avatar: 'Y',
+                  isCurrentUser: true,
+                },
+                { rank: 4, name: 'Charlie', level: 4, xp: 3800, avatar: 'C' },
+              ].map((entry) => (
+                <div
+                  key={entry.rank}
+                  className={`flex items-center justify-between p-2 rounded-lg border ${
+                    entry.isCurrentUser
+                      ? 'border-purple-600 bg-purple-500/5 ring-1 ring-purple-600/20'
+                      : 'border-border bg-card'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-extrabold text-[10px] text-muted-foreground w-4">
+                      #{entry.rank}
+                    </span>
+                    <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-[10px]">
+                      {entry.avatar}
+                    </span>
+                    <span className="font-semibold text-foreground truncate">
+                      {entry.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground shrink-0">
+                    Lvl {entry.level} • {entry.xp} XP
+                  </span>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
