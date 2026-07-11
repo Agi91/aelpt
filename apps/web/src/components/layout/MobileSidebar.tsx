@@ -18,6 +18,7 @@ import {
   Settings,
   X,
   Flame,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS } from '@/lib/constants/routes';
@@ -42,6 +43,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Calendar,
   Heart,
   Settings,
+  Search,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

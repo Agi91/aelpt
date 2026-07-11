@@ -23,3 +23,5 @@ export * from './src/utils/similarity';
 export * from './src/utils/embedding-mock-provider';
 export * from './src/utils/embedding-cache';
 export * from './src/utils/embedding-service';
+export * from './src/types/vector-search.types';
+export * from './src/utils/vector-search-service';
