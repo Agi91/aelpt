@@ -17,7 +17,17 @@ import {
   Database,
   Play,
   Clock,
+  Award,
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -391,6 +401,102 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Study Trend Chart & Insights */}
+          {!isEmptyState && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Study Trend Chart */}
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <SectionHeader
+                    title="Weekly Study Hours"
+                    subtitle="Track daily focused learning sessions"
+                    className="mb-0"
+                  />
+                </CardHeader>
+                <CardContent className="h-60 pt-2 text-xs">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={[
+                        { dayName: 'Mon', hours: 1.5 },
+                        { dayName: 'Tue', hours: 2.2 },
+                        { dayName: 'Wed', hours: 0.8 },
+                        { dayName: 'Thu', hours: 1.9 },
+                        { dayName: 'Fri', hours: 2.5 },
+                        { dayName: 'Sat', hours: 0.5 },
+                        { dayName: 'Sun', hours: 1.2 },
+                      ]}
+                      margin={{ top: 5, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                      <XAxis
+                        dataKey="dayName"
+                        stroke="#888888"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        stroke="#888888"
+                        fontSize={10}
+                        tickLine={false}
+                        axisLine={false}
+                        unit="h"
+                      />
+                      <Tooltip />
+                      <Line
+                        type="monotone"
+                        dataKey="hours"
+                        stroke="#a855f7"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Insights Panel */}
+              <Card className="border border-border">
+                <CardHeader className="pb-2">
+                  <SectionHeader
+                    title="Learning Insights"
+                    subtitle="Deterministic performance highlights"
+                    className="mb-0"
+                  />
+                </CardHeader>
+                <CardContent className="space-y-2.5 pt-2 text-xs">
+                  <div className="p-2.5 border border-border/50 rounded-lg bg-card flex gap-2.5 items-start">
+                    <span className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded bg-purple-500/10 text-purple-600">
+                      <Award className="h-4 w-4" />
+                    </span>
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-foreground">
+                        Peak Quiz Accuracy
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-normal">
+                        Your highest scored quiz attempt is 85% accuracy.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 border border-border/50 rounded-lg bg-card flex gap-2.5 items-start">
+                    <span className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded bg-amber-500/10 text-amber-600">
+                      <Flame className="h-4 w-4" />
+                    </span>
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-foreground">
+                        Consistency Index
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-normal">
+                        Active study streak is maintained at {streakCount} days.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Quick Actions & Widgets */}

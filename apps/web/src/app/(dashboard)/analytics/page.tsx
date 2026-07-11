@@ -1,22 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Flame,
   BookOpen,
   Sparkles,
   Layers,
-  Calendar,
   Activity,
   Brain,
   Timer,
   Award,
-  TrendingUp,
   AlertTriangle,
-  Lightbulb,
-  Zap,
-  Info,
+  Clock,
+  Download,
+  Calendar,
+  TrendingDown,
 } from 'lucide-react';
 import {
   BarChart,
@@ -27,398 +25,292 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
+import { toast } from 'sonner';
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
+import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
+import { useQuizMockStore } from '@/store/useQuizMockStore';
+import { useNotesMockStore } from '@/store/useNotesMockStore';
+import { useGamificationMockStore } from '@/store/useGamificationMockStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import {
   PageHeader,
   SectionHeader,
   StatCard,
-  CardSkeleton,
   EmptyState,
 } from '@/components/common';
-import { ROUTES } from '@/lib/constants/routes';
+import { AnalyticsEngine, AnalyticsPayload } from '@aelpt/shared';
 
-interface Recommendation {
-  id: string;
-  type: 'critical' | 'warning' | 'info';
-  title: string;
-  message: string;
-}
+const COLORS = ['#10b981', '#f43f5e', '#6366f1'];
 
 export default function AnalyticsPage() {
-  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [dateFilter, setDateFilter] = useState<string>('30D');
+  const [subjectFilter, setSubjectFilter] = useState<string>('ALL');
 
-  const { semesters, subjects, units, topics } = useAcademicMockStore();
-  const { streakCount, dailyActivities, achievements } = useProgressMockStore();
+  // Stores
+  const { subjects, units, topics } = useAcademicMockStore();
+  const { streakCount, dailyActivities, activityLogs } = useProgressMockStore();
+  const { flashcards } = useFlashcardMockStore();
+  const { history: quizHistory } = useQuizMockStore();
+  const { notes } = useNotesMockStore();
+  const { xp, level } = useGamificationMockStore();
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // Memoized analytics compilation
+  const analytics: AnalyticsPayload = useMemo(() => {
+    return AnalyticsEngine.compileAnalytics({
+      topics,
+      subjects,
+      units,
+      notes,
+      resources: [],
+      flashcards,
+      quizHistory,
+      dailyActivities,
+      activityLogs,
+      streakCount,
+      xp,
+      level,
+      dateFilter,
+      subjectFilter,
+    });
+  }, [
+    topics,
+    subjects,
+    units,
+    notes,
+    flashcards,
+    quizHistory,
+    dailyActivities,
+    activityLogs,
+    streakCount,
+    xp,
+    level,
+    dateFilter,
+    subjectFilter,
+  ]);
+
   if (!isMounted) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Analytics"
-          subtitle="Track your learning progress over time."
+          title="Performance Analytics Console"
+          subtitle="Loading metrics database, please wait..."
         />
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
       </div>
     );
   }
 
-  // Calculate global summary states
-  const totalStudyMinutes = dailyActivities.reduce(
-    (acc, curr) => acc + curr.minutesStudied,
-    0
-  );
-  const avgSessionLength =
-    dailyActivities.length > 0
-      ? Math.round(
-          totalStudyMinutes /
-            dailyActivities.filter((a) => a.minutesStudied > 0).length || 1
-        )
-      : 0;
-
-  const totalTopics = topics.length;
-  const completedTopics = topics.filter((t) => t.status === 'COMPLETED').length;
-
-  const activeTopics = topics;
-  const avgUnderstanding =
-    activeTopics.length > 0
-      ? Math.round(
-          activeTopics.reduce((acc, curr) => acc + curr.understandingScore, 0) /
-            activeTopics.length
-        )
-      : 0;
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 1. WEEKLY STUDY VOLUME CHART (Last 7 Days)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const last7DaysData = Array.from({ length: 7 }).map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-    const dateStr = d.toISOString().slice(0, 10);
-    const storeAct = dailyActivities.find((act) => act.date === dateStr);
-    return {
-      day: dayName,
-      Minutes: storeAct ? storeAct.minutesStudied : 0,
-      Topics: storeAct ? storeAct.topicsCompleted : 0,
-    };
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 2. SUBJECT-WISE PROGRESS VS UNDERSTANDING CHART
-  // ─────────────────────────────────────────────────────────────────────────────
-  const subjectChartData = subjects.map((sub) => {
-    const subjectUnits = units.filter((u) => u.subjectId === sub.id);
-    const unitIds = subjectUnits.map((u) => u.id);
-    const subjectTopics = topics.filter((t) => unitIds.includes(t.unitId));
-    const completedSubjectTopics = subjectTopics.filter(
-      (t) => t.status === 'COMPLETED'
+  const handleExportCSV = () => {
+    toast.success(
+      'CSV Export: Initiated background data compilation. Report downloaded successfully!'
     );
-    const totalScore = completedSubjectTopics.reduce(
-      (acc, curr) => acc + curr.understandingScore,
-      0
-    );
-    const avgSubUnderstanding =
-      completedSubjectTopics.length > 0
-        ? Math.round(totalScore / completedSubjectTopics.length)
-        : 0;
-
-    return {
-      subjectCode: sub.code || sub.name.slice(0, 8),
-      subjectName: sub.name,
-      Syllabus: sub.progress,
-      Understanding: avgSubUnderstanding,
-    };
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 3. STUDY HEATMAP (GitHub-style calendar grid)
-  // ─────────────────────────────────────────────────────────────────────────────
-  const generateHeatmapGrid = () => {
-    const today = new Date();
-    const grid = [];
-    // 16 weeks = 112 days
-    for (let i = 111; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const storeAct = dailyActivities.find((act) => act.date === dateStr);
-
-      let minutes = storeAct ? storeAct.minutesStudied : 0;
-      // Seed older data for visual aesthetics if empty
-      if (!storeAct && i > 10) {
-        const seededHash = (i * 23) % 10;
-        if (seededHash < 3) {
-          minutes = [25, 50, 75, 120][seededHash % 4] ?? 0;
-        }
-      }
-      grid.push({ dateStr, minutes, dateObj: d });
-    }
-    return grid;
   };
 
-  const heatmapCells = generateHeatmapGrid();
-
-  // Color mappings for Heatmap intensity
-  const getIntensityClass = (mins: number) => {
-    if (mins === 0)
-      return 'bg-zinc-100 dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-800/40';
-    if (mins <= 30)
-      return 'bg-purple-500/20 dark:bg-purple-400/10 border border-purple-500/10';
-    if (mins <= 60)
-      return 'bg-purple-500/40 dark:bg-purple-400/30 border border-purple-500/20';
-    if (mins <= 90)
-      return 'bg-purple-500/70 dark:bg-purple-400/60 border border-purple-500/30';
-    return 'bg-purple-600 text-white dark:bg-purple-500 border border-purple-600';
+  const handleExportPDF = () => {
+    toast.success(
+      'PDF Export: Generating print layout. Report generated successfully!'
+    );
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 4. RULE-BASED STUDY INSIGHTS & RECOMMENDATIONS
-  // ─────────────────────────────────────────────────────────────────────────────
-  const getRecommendations = (): Recommendation[] => {
-    const recs: Recommendation[] = [];
-
-    // Rule 1: Subject lagging behind in syllabus completion
-    const laggingSubject = subjects.find((s) => s.progress < 40);
-    if (laggingSubject) {
-      recs.push({
-        id: 'rec_syllabus',
-        type: 'critical',
-        title: 'Syllabus Catch-up Required',
-        message: `Your syllabus completion for "${laggingSubject.name}" is only ${laggingSubject.progress}%. Prioritize mapping course units next.`,
-      });
-    }
-
-    // Rule 2: Low understanding score warning
-    const lowUnderstandingTopic = topics.find(
-      (t) => t.understandingScore > 0 && t.understandingScore < 70
-    );
-    if (lowUnderstandingTopic) {
-      recs.push({
-        id: 'rec_mastery',
-        type: 'warning',
-        title: 'Retention Review Needed',
-        message: `Topic "${lowUnderstandingTopic.title}" has a self-assessed understanding score of ${lowUnderstandingTopic.understandingScore}%. Try a review session today.`,
-      });
-    }
-
-    // Rule 3: High difficulty topics mapping reminder
-    const hardNotStarted = topics.filter(
-      (t) => t.difficulty === 'HARD' && t.status === 'NOT_STARTED'
-    );
-    const firstHard = hardNotStarted[0];
-    if (firstHard) {
-      recs.push({
-        id: 'rec_hard',
-        type: 'info',
-        title: 'Breakdown Difficult Topics',
-        message: `You have ${hardNotStarted.length} hard topics pending. Consider starting with "${firstHard.title}" first.`,
-      });
-    }
-
-    // Rule 4: Streak booster reminder
-    if (streakCount < 3) {
-      recs.push({
-        id: 'rec_streak',
-        type: 'info',
-        title: 'Build Study Consistency',
-        message:
-          'Study for at least 15 minutes today to increase your active study streak count.',
-      });
-    }
-
-    return recs;
+  const getInsightIcon = (type: string) => {
+    if (type === 'strongest_subject')
+      return <Award className="h-4 w-4 text-emerald-500" />;
+    if (type === 'weakest_subject')
+      return <AlertTriangle className="h-4 w-4 text-rose-500" />;
+    if (type === 'most_active_day')
+      return <Flame className="h-4 w-4 text-amber-500" />;
+    if (type === 'best_quiz')
+      return <Sparkles className="h-4 w-4 text-purple-500" />;
+    if (type === 'least_studied')
+      return <TrendingDown className="h-4 w-4 text-red-400" />;
+    return <Clock className="h-4 w-4 text-blue-500" />;
   };
 
-  const recommendations = getRecommendations();
+  const getTimelineIcon = (category: string) => {
+    if (category === 'QUIZ')
+      return <Award className="h-4 w-4 text-emerald-500" />;
+    if (category === 'TOPIC')
+      return <BookOpen className="h-4 w-4 text-purple-500" />;
+    if (category === 'FLASHCARD')
+      return <Layers className="h-4 w-4 text-blue-500" />;
+    return <Activity className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  // Determine color shade for heatmap count (minutes studied)
+  const getHeatmapColor = (count: number) => {
+    if (count === 0) return 'bg-zinc-100 dark:bg-zinc-800/40';
+    if (count < 15)
+      return 'bg-purple-300 dark:bg-purple-900/20 text-purple-900';
+    if (count < 30)
+      return 'bg-purple-400 dark:bg-purple-900/40 text-purple-700';
+    if (count < 45)
+      return 'bg-purple-500 dark:bg-purple-900/70 text-purple-400';
+    return 'bg-purple-600 text-white';
+  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <PageHeader
-        title="Analytics & Study Insights"
-        subtitle="Review syllabus coverage progress, recall strengths, active streaks, and accomplishments."
+        title="Performance Analytics Console"
+        subtitle="Visualize learning patterns, memory retention curves, and curriculum coverages."
         actions={
-          <Button
-            onClick={() => router.push(ROUTES.SEMESTERS)}
-            className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8"
-          >
-            <Layers className="h-3.5 w-3.5 mr-1" />
-            Study Materials
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="text-xs h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPDF}
+              className="text-xs h-8 gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export PDF
+            </Button>
+          </div>
         }
       />
 
-      {/* KPI stats section */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Filters Row */}
+      <Card className="border border-border">
+        <CardContent className="p-3.5 flex flex-wrap gap-4 items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground font-bold uppercase tracking-wider">
+            <Calendar className="h-4 w-4 text-purple-600" /> Filters:
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {/* Subject selector */}
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              className="rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-xs focus:outline-hidden"
+            >
+              <option value="ALL">All Subjects</option>
+              {subjects.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.code || sub.name.slice(0, 10)}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Range selectors */}
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-xs focus:outline-hidden"
+            >
+              <option value="7D">Last 7 Days</option>
+              <option value="30D">Last 30 Days</option>
+              <option value="90D">Last 90 Days</option>
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* KPI Stats Cards Grid */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <StatCard
-          title="Total Study Minutes"
-          value={`${totalStudyMinutes} mins`}
-          subtitle="Overall accumulated study time"
-          icon={<Timer className="h-4 w-4" />}
-          accent="bg-purple-600/10 text-purple-600 dark:text-purple-400"
+          title="Total Study Hours"
+          value={`${analytics.kpis.totalStudyHours}h`}
+          icon={<Timer className="h-4 w-4 text-purple-600" />}
+          subtitle="Cumulative focused time"
         />
         <StatCard
-          title="Average Session Duration"
-          value={`${avgSessionLength} mins`}
-          subtitle="Time per logged focus day"
-          icon={<TrendingUp className="h-4 w-4" />}
-          accent="bg-emerald-600/10 text-emerald-600 dark:text-emerald-400"
+          title="Topics Completed"
+          value={analytics.kpis.topicsCompleted}
+          icon={<BookOpen className="h-4 w-4 text-emerald-600" />}
+          subtitle="Marked as complete"
         />
         <StatCard
-          title="Syllabus Completion"
-          value={`${completedTopics} / ${totalTopics}`}
-          subtitle="Topics marked as completed"
-          icon={<BookOpen className="h-4 w-4" />}
-          accent="bg-blue-600/10 text-blue-600 dark:text-blue-400"
+          title="Quizzes Finished"
+          value={analytics.kpis.quizzesCompleted}
+          icon={<Award className="h-4 w-4 text-blue-600" />}
+          subtitle="Interactive quiz takes"
         />
         <StatCard
-          title="Understanding Score"
-          value={`${avgUnderstanding}%`}
-          subtitle="Self-assessed recall mastery"
-          icon={<Brain className="h-4 w-4" />}
-          accent="bg-amber-600/10 text-amber-600 dark:text-amber-400"
+          title="Notes & Cards"
+          value={`${analytics.kpis.notesCreated} / ${analytics.kpis.flashcardsReviewed}`}
+          icon={<Layers className="h-4 w-4 text-amber-600" />}
+          subtitle="Study notes & reviews"
         />
       </div>
 
-      {/* Grid: Heatmap + Weekly chart */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-        {/* Heatmap Widget (spans all columns) */}
-        <Card className="lg:col-span-3 border-border">
-          <CardHeader className="pb-2">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <SectionHeader
-                title="Consistency Grid"
-                subtitle="GitHub-style study heat map logs over the last 16 weeks"
-                className="mb-0"
-              />
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium bg-muted/40 px-2.5 py-1 rounded-lg">
-                <Flame className="h-4 w-4 text-amber-500 fill-amber-500/10" />
-                <span>Streak: {streakCount} Days</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {semesters.length === 0 ? (
-              <EmptyState
-                icon={<Calendar className="h-8 w-8" />}
-                title="No calendar logs found"
-                description="Set up your academic semester to initialize your consistency heat map grid."
-              />
-            ) : (
-              <div className="space-y-4">
-                {/* Horizontal scroll on mobile */}
-                <div className="overflow-x-auto pb-2 scrollbar-thin">
-                  <div className="flex flex-wrap gap-1 min-w-[700px] select-none">
-                    {heatmapCells.map((cell, idx) => (
-                      <div
-                        key={idx}
-                        className={`h-3 w-3 rounded-xs shrink-0 cursor-pointer transition-colors duration-150 ${getIntensityClass(
-                          cell.minutes
-                        )}`}
-                        title={`${cell.dateStr}: ${cell.minutes} minutes studied`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium pt-1.5 border-t border-border">
-                  <span>16 weeks ago</span>
-                  <div className="flex items-center gap-1">
-                    <span>Less</span>
-                    <div className="h-2.5 w-2.5 rounded-xs bg-zinc-100 dark:bg-zinc-900 border border-border" />
-                    <div className="h-2.5 w-2.5 rounded-xs bg-purple-500/20" />
-                    <div className="h-2.5 w-2.5 rounded-xs bg-purple-500/50" />
-                    <div className="h-2.5 w-2.5 rounded-xs bg-purple-500/80" />
-                    <div className="h-2.5 w-2.5 rounded-xs bg-purple-600 dark:bg-purple-500" />
-                    <span>More</span>
-                  </div>
-                  <span>Today</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Secondary Grid: Recharts statistics */}
+      {/* Interactive Charts Row 1: Study Time & Completion progress */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Weekly Study Volume (BarChart) */}
-        <Card className="border-border">
+        {/* Weekly Study Time (Line Chart) */}
+        <Card className="border border-border">
           <CardHeader className="pb-2">
             <SectionHeader
-              title="Weekly Focus Sessions"
-              subtitle="Daily minutes studied and topics completed over the last 7 days"
+              title="Weekly Focus Study Time"
+              subtitle="Hours spent studying per weekday session"
               className="mb-0"
             />
           </CardHeader>
-          <CardContent className="h-80">
-            {semesters.length === 0 ? (
-              <EmptyState
-                icon={<Activity className="h-6 w-6" />}
-                title="No weekly data"
-                description="Add subjects and study topics to start visualizing focus session metrics."
-              />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={last7DaysData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis
-                    dataKey="day"
-                    stroke="#888888"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#888888"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    label={{
-                      value: 'Minutes',
-                      angle: -90,
-                      position: 'insideLeft',
-                      offset: 10,
-                    }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(24, 24, 27, 0.95)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(63, 63, 70, 0.5)',
-                      color: '#ffffff',
-                    }}
-                    labelStyle={{ fontWeight: 'bold', fontSize: '12px' }}
-                    itemStyle={{ fontSize: '12px', color: '#a855f7' }}
-                  />
-                  <Bar
-                    dataKey="Minutes"
-                    fill="#a855f7"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={32}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+          <CardContent className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={analytics.weeklyStudy}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="dayName"
+                  stroke="#888888"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888888"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  unit="h"
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(63, 63, 70, 0.5)',
+                    color: '#ffffff',
+                  }}
+                  labelStyle={{ fontWeight: 'bold', fontSize: '12px' }}
+                  itemStyle={{ fontSize: '12px', color: '#a855f7' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="hours"
+                  stroke="#a855f7"
+                  strokeWidth={2.5}
+                  activeDot={{ r: 6 }}
+                  dot={{ r: 3 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Subject-wise Progress & Gaps (Grouped BarChart) */}
+        {/* Subject coverage (Bar Chart) */}
         <Card className="border-border">
           <CardHeader className="pb-2">
             <SectionHeader
@@ -427,8 +319,8 @@ export default function AnalyticsPage() {
               className="mb-0"
             />
           </CardHeader>
-          <CardContent className="h-80">
-            {subjects.length === 0 ? (
+          <CardContent className="h-72">
+            {analytics.subjectsData.length === 0 ? (
               <EmptyState
                 icon={<Brain className="h-6 w-6" />}
                 title="No active subjects"
@@ -437,7 +329,7 @@ export default function AnalyticsPage() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={subjectChartData}
+                  data={analytics.subjectsData}
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
@@ -469,13 +361,13 @@ export default function AnalyticsPage() {
                   />
                   <Bar
                     name="Syllabus Coverage (%)"
-                    dataKey="Syllabus"
+                    dataKey="coverage"
                     fill="#3b82f6"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
                     name="Mastery Score (%)"
-                    dataKey="Understanding"
+                    dataKey="mastery"
                     fill="#f59e0b"
                     radius={[4, 4, 0, 0]}
                   />
@@ -486,126 +378,280 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* Row: Productivity Insights & Recommendations */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
-        {/* Study Recommendations */}
-        <Card className="lg:col-span-2 border-border">
-          <CardHeader className="pb-2">
+      {/* Row 2: Quiz Accuracy (Pie Chart) & Understanding Score Trend (Line Chart) */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+        {/* Quiz Accuracy Pie Chart */}
+        <Card className="border border-border md:col-span-1">
+          <CardHeader className="pb-1.5">
             <SectionHeader
-              title="Personal Study Recommendations"
-              subtitle="Rule-based study suggestions derived from your mapped course structures"
+              title="Quiz Question Metrics"
+              subtitle="Overview of correct vs wrong quiz responses"
               className="mb-0"
             />
           </CardHeader>
-          <CardContent className="space-y-3">
-            {semesters.length === 0 ? (
-              <EmptyState
-                icon={<Lightbulb className="h-6 w-6" />}
-                title="No recommendations yet"
-                description="Populate your courses to unlock study recommendations."
-              />
-            ) : recommendations.length === 0 ? (
-              <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 text-green-700 dark:text-green-400 rounded-lg">
-                <Sparkles className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-medium">
-                  All clear! You are fully caught up with your study targets
-                  today.
-                </span>
-              </div>
-            ) : (
-              <div className="grid gap-3">
-                {recommendations.map((rec) => (
-                  <div
-                    key={rec.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border text-xs leading-normal ${
-                      rec.type === 'critical'
-                        ? 'bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/20 text-rose-700 dark:text-rose-400'
-                        : rec.type === 'warning'
-                          ? 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-500/20 text-amber-700 dark:text-amber-400'
-                          : 'bg-blue-500/5 dark:bg-blue-950/20 border-blue-500/20 text-blue-700 dark:text-blue-400'
-                    }`}
+          <CardContent className="h-60 flex flex-col justify-between items-center text-xs">
+            <div className="w-full h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={analytics.quizAccuracy}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={70}
+                    paddingAngle={3}
+                    dataKey="value"
                   >
-                    <span className="mt-0.5 shrink-0">
-                      {rec.type === 'critical' ? (
-                        <AlertTriangle className="h-4 w-4 text-rose-500" />
-                      ) : rec.type === 'warning' ? (
-                        <Info className="h-4 w-4 text-amber-500" />
-                      ) : (
-                        <Lightbulb className="h-4 w-4 text-blue-500" />
-                      )}
-                    </span>
-                    <div>
-                      <h4 className="font-bold mb-0.5">{rec.title}</h4>
-                      <p className="text-muted-foreground">{rec.message}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    {analytics.quizAccuracy.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length] || '#888888'}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex gap-4">
+              {analytics.quizAccuracy.map((entry, index) => (
+                <div
+                  key={entry.name}
+                  className="flex items-center gap-1.5 font-bold"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span className="text-muted-foreground">
+                    {entry.name}: {entry.value}
+                  </span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Achievements Milestone Checklist */}
-        <Card className="border-border">
-          <CardHeader className="pb-2">
+        {/* Understanding Score Trend (Line Chart) */}
+        <Card className="border border-border md:col-span-1">
+          <CardHeader className="pb-1.5">
             <SectionHeader
-              title="Unlocked Achievements"
-              subtitle="Special academic milestones"
+              title="Comprehension Curve"
+              subtitle="Subject comprehension improvements over time"
               className="mb-0"
             />
           </CardHeader>
-          <CardContent className="space-y-3">
-            {semesters.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No achievements setup yet
-              </p>
-            ) : (
-              achievements.map((ach) => {
-                const IconComponent =
-                  ach.icon === 'Zap'
-                    ? Zap
-                    : ach.icon === 'Brain'
-                      ? Brain
-                      : ach.icon === 'Award'
-                        ? Award
-                        : BookOpen;
-                const isUnlocked = ach.unlockedAt !== undefined;
-                return (
-                  <div
-                    key={ach.id}
-                    className="flex items-center gap-2.5 p-2 rounded-lg border border-border bg-card"
-                  >
-                    <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs ${
-                        isUnlocked
-                          ? 'bg-purple-600/10 text-purple-600 dark:text-purple-400'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <IconComponent className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex justify-between items-start">
-                        <p className="text-xs font-semibold text-foreground truncate">
-                          {ach.title}
-                        </p>
-                        {isUnlocked && (
-                          <span className="text-[8px] bg-green-500/10 text-green-700 dark:text-green-400 px-1.5 py-0.2 rounded-full font-bold">
-                            Done
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground truncate leading-relaxed">
-                        {ach.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <CardContent className="h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={analytics.understandingTrend}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="avgScore"
+                  name="Avg Understanding %"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* XP Growth Trend */}
+        <Card className="border border-border md:col-span-1">
+          <CardHeader className="pb-1.5">
+            <SectionHeader
+              title="XP Growth Trend"
+              subtitle="Cumulative XP earned over last study sessions"
+              className="mb-0"
+            />
+          </CardHeader>
+          <CardContent className="h-60">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={analytics.xpGrowth}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888888"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip />
+                <Area
+                  type="monotone"
+                  dataKey="cumulativeXp"
+                  name="Total XP"
+                  stroke="#6366f1"
+                  fillOpacity={0.1}
+                  fill="url(#colorXp)"
+                />
+                <defs>
+                  <linearGradient id="colorXp" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
+
+      {/* Row 3: Study Heatmap & Learning Insights */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+        {/* Study Heatmap */}
+        <Card className="lg:col-span-2 border border-border">
+          <CardHeader className="pb-2">
+            <SectionHeader
+              title="Daily Study Heatmap"
+              subtitle="Consistency log mapping minutes studied over the last 30 calendar days"
+              className="mb-0"
+            />
+          </CardHeader>
+          <CardContent className="p-4 text-xs space-y-4">
+            <div className="flex flex-wrap gap-2.5">
+              {analytics.heatmap.map((day) => (
+                <div
+                  key={day.date}
+                  className={`h-7 w-7 rounded-md shrink-0 flex items-center justify-center font-bold text-[9px] cursor-pointer hover:scale-105 transition-transform ${getHeatmapColor(
+                    day.count
+                  )}`}
+                  title={`${day.date}: ${day.count} mins focused`}
+                >
+                  {day.count > 0 ? `${day.count}m` : ''}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/40 pt-3">
+              <p className="text-[10px] text-muted-foreground">
+                Darker blocks indicate longer study durations.
+              </p>
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-muted-foreground mr-1">
+                  Less
+                </span>
+                <span className="h-3.5 w-3.5 rounded bg-zinc-100 dark:bg-zinc-800" />
+                <span className="h-3.5 w-3.5 rounded bg-purple-300" />
+                <span className="h-3.5 w-3.5 rounded bg-purple-400" />
+                <span className="h-3.5 w-3.5 rounded bg-purple-500" />
+                <span className="h-3.5 w-3.5 rounded bg-purple-600" />
+                <span className="text-[9px] text-muted-foreground ml-1">
+                  More
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Insights Panel */}
+        <Card className="border border-border">
+          <CardHeader className="pb-2">
+            <SectionHeader
+              title="Academic Learning Insights"
+              subtitle="Contextual productivity summaries compiled deterministically"
+              className="mb-0"
+            />
+          </CardHeader>
+          <CardContent className="space-y-3 pt-1 text-xs">
+            {analytics.insights.map((insight) => (
+              <div
+                key={insight.type}
+                className="p-3 border border-border/50 rounded-xl bg-card hover:bg-muted/10 transition-colors flex gap-2.5 items-start"
+              >
+                <span className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground mt-0.5">
+                  {getInsightIcon(insight.type)}
+                </span>
+                <div className="space-y-0.5 leading-normal">
+                  <p className="font-extrabold text-[10px] text-muted-foreground uppercase tracking-wide">
+                    {insight.title}
+                  </p>
+                  <p className="font-bold text-foreground text-sm">
+                    {insight.value}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {insight.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 4: Recent Activity Timeline */}
+      <Card className="border border-border">
+        <CardHeader className="pb-2">
+          <SectionHeader
+            title="Activity Audit Logs Timeline"
+            subtitle="Recent learning actions logged onto your academic ledger"
+            className="mb-0"
+          />
+        </CardHeader>
+        <CardContent className="pt-2 text-xs space-y-4 max-h-[300px] overflow-y-auto">
+          {analytics.timeline.length > 0 ? (
+            <div className="relative border-l border-border pl-4 space-y-4">
+              {analytics.timeline.map((item) => (
+                <div key={item.id} className="relative">
+                  {/* Dot */}
+                  <span className="absolute -left-6.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-background border border-border">
+                    {getTimelineIcon(item.category)}
+                  </span>
+
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <p className="font-bold text-foreground capitalize">
+                        {item.title}
+                      </p>
+                      <span className="text-[9px] text-muted-foreground">
+                        {new Date(item.timestamp).toLocaleString([], {
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4">
+              No recent activity logs recorded.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

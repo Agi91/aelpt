@@ -34,3 +34,6 @@ export * from './src/utils/recommendation-engine';
 export * from './src/types/gamification.types';
 export * from './src/schemas/gamification.schema';
 export * from './src/utils/gamification-engine';
+export * from './src/types/analytics.types';
+export * from './src/schemas/analytics.schema';
+export * from './src/utils/analytics-engine';
