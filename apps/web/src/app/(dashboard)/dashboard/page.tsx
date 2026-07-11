@@ -18,6 +18,7 @@ import {
   Play,
   Clock,
   Award,
+  Heart,
 } from 'lucide-react';
 import {
   LineChart,
@@ -45,6 +46,8 @@ import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
 import { useRecommendationMockStore } from '@/store/useRecommendationMockStore';
 import { useGamificationMockStore } from '@/store/useGamificationMockStore';
 import { usePlannerMockStore } from '@/store/usePlannerMockStore';
+import { useWellnessMockStore } from '@/store/useWellnessMockStore';
+import { useEffect } from 'react';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -62,6 +65,36 @@ export default function DashboardPage() {
     xp,
   } = useGamificationMockStore();
   const { tasks: plannerTasks, goals: plannerGoals } = usePlannerMockStore();
+
+  const {
+    minutes: pomodoroMin,
+    seconds: pomodoroSec,
+    isRunning: pomodoroRunning,
+    timerMode: pomodoroMode,
+    completedSessions: pomodoroCompleted,
+    tick: pomodoroTick,
+    startTimer: pomodoroStart,
+    pauseTimer: pomodoroPause,
+    resetTimer: pomodoroReset,
+    setTimerMode: pomodoroSetMode,
+    preferences: dashboardPrefs,
+    toggleWidgetVisibility,
+    setViewMode,
+  } = useWellnessMockStore();
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (pomodoroRunning) {
+      timer = setInterval(() => {
+        pomodoroTick();
+      }, 1000);
+    }
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [pomodoroRunning, pomodoroTick]);
 
   const todayStr = new Date().toISOString().split('T')[0]!;
   const todayPlannerGoal = plannerGoals.find((g) => g.date === todayStr);
@@ -216,9 +249,13 @@ export default function DashboardPage() {
       )}
 
       {/* Main Responsive Grid Layout (Unequal 2-column on md+) */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+      <div
+        className={`grid grid-cols-1 lg:grid-cols-3 ${dashboardPrefs.viewMode === 'COMPACT' ? 'gap-3.5' : 'gap-6'}`}
+      >
         {/* LEFT COLUMN: Study Progress & Activity */}
-        <div className="lg:col-span-2 space-y-6">
+        <div
+          className={`lg:col-span-2 ${dashboardPrefs.viewMode === 'COMPACT' ? 'space-y-3.5' : 'space-y-6'}`}
+        >
           {/* Spaced Repetition Due Today Banner Widget */}
           {dueCount > 0 && !isEmptyState && (
             <Card className="border-purple-600/30 bg-purple-500/5 dark:bg-purple-950/10">
@@ -357,104 +394,105 @@ export default function DashboardPage() {
           </Card>
 
           {/* Today's Planner Goals & Deadlines Widget */}
-          {!isEmptyState && (
-            <Card className="border border-border">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                <SectionHeader
-                  title="Today's Planner Goals & Deadlines"
-                  subtitle="Track scheduled study tasks and completion metrics"
-                  className="mb-0"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-purple-600 dark:text-purple-400 hover:bg-transparent p-0"
-                  onClick={() => router.push(ROUTES.PLANNER)}
-                >
-                  Go to Planner
-                  <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-4 text-xs pt-1">
-                {/* Today's Goal Progress bar */}
-                <div className="space-y-2 p-3 rounded-lg border border-border bg-card/60">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-semibold text-muted-foreground flex items-center gap-1">
-                      <Timer className="h-3.5 w-3.5 text-purple-600" />{' '}
-                      {"Today's Focus Goal"}
-                    </span>
-                    <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-full">
-                      {plannerGoalAchieved}m / {plannerGoalTarget}m focused
-                    </span>
+          {!isEmptyState &&
+            !dashboardPrefs.hiddenWidgets.includes('PLANNER_SNAPSHOT') && (
+              <Card className="border border-border">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                  <SectionHeader
+                    title="Today's Planner Goals & Deadlines"
+                    subtitle="Track scheduled study tasks and completion metrics"
+                    className="mb-0"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:bg-transparent p-0"
+                    onClick={() => router.push(ROUTES.PLANNER)}
+                  >
+                    Go to Planner
+                    <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs pt-1">
+                  {/* Today's Goal Progress bar */}
+                  <div className="space-y-2 p-3 rounded-lg border border-border bg-card/60">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-muted-foreground flex items-center gap-1">
+                        <Timer className="h-3.5 w-3.5 text-purple-600" />{' '}
+                        {"Today's Focus Goal"}
+                      </span>
+                      <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-full">
+                        {plannerGoalAchieved}m / {plannerGoalTarget}m focused
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-border rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, Math.round((plannerGoalAchieved / plannerGoalTarget) * 100))}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 w-full bg-border rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min(100, Math.round((plannerGoalAchieved / plannerGoalTarget) * 100))}%`,
-                      }}
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Next Task */}
-                  <div className="space-y-2">
-                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Next Study Task
-                    </p>
-                    {nextPlannerTask ? (
-                      <div className="p-2.5 border border-border/50 rounded-lg bg-card flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-foreground truncate">
-                            {nextPlannerTask.title}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground truncate">
-                            {nextPlannerTask.description}
-                          </p>
-                        </div>
-                        <span className="text-[9px] bg-purple-500/10 text-purple-600 font-bold px-1.5 py-0.5 rounded shrink-0 ml-2">
-                          {nextPlannerTask.estimatedTime}m
-                        </span>
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground text-xs italic">
-                        All planner tasks completed.
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Next Task */}
+                    <div className="space-y-2">
+                      <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                        Next Study Task
                       </p>
-                    )}
-                  </div>
-
-                  {/* Upcoming Deadlines */}
-                  <div className="space-y-2">
-                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
-                      Upcoming Deadlines
-                    </p>
-                    <div className="space-y-1.5">
-                      {upcomingDeadlines.length > 0 ? (
-                        upcomingDeadlines.map((t) => (
-                          <div
-                            key={t.id}
-                            className="flex justify-between items-center text-[11px] border-b border-border/40 pb-1"
-                          >
-                            <span className="text-foreground truncate pr-2">
-                              {t.title}
-                            </span>
-                            <span className="text-purple-600 font-bold shrink-0">
-                              {t.dueDate}
-                            </span>
+                      {nextPlannerTask ? (
+                        <div className="p-2.5 border border-border/50 rounded-lg bg-card flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-foreground truncate">
+                              {nextPlannerTask.title}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {nextPlannerTask.description}
+                            </p>
                           </div>
-                        ))
+                          <span className="text-[9px] bg-purple-500/10 text-purple-600 font-bold px-1.5 py-0.5 rounded shrink-0 ml-2">
+                            {nextPlannerTask.estimatedTime}m
+                          </span>
+                        </div>
                       ) : (
                         <p className="text-muted-foreground text-xs italic">
-                          No upcoming deadlines.
+                          All planner tasks completed.
                         </p>
                       )}
                     </div>
+
+                    {/* Upcoming Deadlines */}
+                    <div className="space-y-2">
+                      <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wider">
+                        Upcoming Deadlines
+                      </p>
+                      <div className="space-y-1.5">
+                        {upcomingDeadlines.length > 0 ? (
+                          upcomingDeadlines.map((t) => (
+                            <div
+                              key={t.id}
+                              className="flex justify-between items-center text-[11px] border-b border-border/40 pb-1"
+                            >
+                              <span className="text-foreground truncate pr-2">
+                                {t.title}
+                              </span>
+                              <span className="text-purple-600 font-bold shrink-0">
+                                {t.dueDate}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-muted-foreground text-xs italic">
+                            No upcoming deadlines.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+            )}
 
           {/* Recent Activity Section */}
           <Card className="border-border">
@@ -613,60 +651,67 @@ export default function DashboardPage() {
         </div>
 
         {/* RIGHT COLUMN: Quick Actions & Widgets */}
-        <div className="space-y-6">
+        <div
+          className={
+            dashboardPrefs.viewMode === 'COMPACT' ? 'space-y-3.5' : 'space-y-6'
+          }
+        >
           {/* AI Study Guide Recommendations */}
-          <Card className="border-border bg-gradient-to-br from-purple-500/5 to-transparent">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <SectionHeader title="AI Study Guide" className="mb-0" />
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
-                onClick={() => router.push(ROUTES.RECOMMENDATIONS)}
-              >
-                View all
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-1 text-xs">
-              {dailyPlan && dailyPlan.dailyGoals.length > 0 ? (
-                <>
-                  <div className="p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5 space-y-1.5">
-                    <p className="font-bold text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-wide">
-                      Recommended Next Task
-                    </p>
-                    <p className="font-semibold text-foreground leading-normal">
-                      {suggestions[0]?.title || 'Study your weak courses'}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {suggestions[0]?.description ||
-                        'Complete syllabus mapping.'}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
-                      {"Today's Study Plan"} ({dailyPlan.estimatedMinutes} mins)
-                    </p>
-                    {dailyPlan.dailyGoals.slice(0, 3).map((goal, idx) => (
-                      <div
-                        key={idx}
-                        className="flex gap-2 items-center text-muted-foreground leading-normal"
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-purple-600 shrink-0" />
-                        <span className="truncate">{goal}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <EmptyState
-                  icon={<Sparkles className="h-6 w-6 text-purple-600" />}
-                  title="No active recommendations"
-                  description="Complete learning materials or take a quiz to get recommendations."
-                  className="py-6"
-                />
-              )}
-            </CardContent>
-          </Card>
+          {!dashboardPrefs.hiddenWidgets.includes('AI_STUDY_GUIDE') && (
+            <Card className="border-border bg-gradient-to-br from-purple-500/5 to-transparent">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <SectionHeader title="AI Study Guide" className="mb-0" />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
+                  onClick={() => router.push(ROUTES.RECOMMENDATIONS)}
+                >
+                  View all
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-1 text-xs">
+                {dailyPlan && dailyPlan.dailyGoals.length > 0 ? (
+                  <>
+                    <div className="p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5 space-y-1.5">
+                      <p className="font-bold text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                        Recommended Next Task
+                      </p>
+                      <p className="font-semibold text-foreground leading-normal">
+                        {suggestions[0]?.title || 'Study your weak courses'}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {suggestions[0]?.description ||
+                          'Complete syllabus mapping.'}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                        {"Today's Study Plan"} ({dailyPlan.estimatedMinutes}{' '}
+                        mins)
+                      </p>
+                      {dailyPlan.dailyGoals.slice(0, 3).map((goal, idx) => (
+                        <div
+                          key={idx}
+                          className="flex gap-2 items-center text-muted-foreground leading-normal"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-purple-600 shrink-0" />
+                          <span className="truncate">{goal}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <EmptyState
+                    icon={<Sparkles className="h-6 w-6 text-purple-600" />}
+                    title="No active recommendations"
+                    description="Complete learning materials or take a quiz to get recommendations."
+                    className="py-6"
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quick Actions Panel */}
           <Card className="border-border">
@@ -701,152 +746,313 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Streak & Burnout Widget */}
-          <Card className="border-border bg-gradient-to-br from-amber-500/5 to-transparent">
+          {/* Dashboard Personalization Controls */}
+          <Card className="border border-border">
             <CardHeader className="pb-2">
-              <SectionHeader title="Streak & Consistency" className="mb-0" />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <Flame className="h-6 w-6" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-foreground">
-                    {!isEmptyState
-                      ? `${streakCount} Days Active`
-                      : '0 Days Active'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {!isEmptyState
-                      ? 'Keep studying daily to maintain your streak!'
-                      : 'Complete a study session to initialize streak.'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Focus Session Timer Indicator Widget */}
-              <div className="p-3 rounded-lg border border-border bg-card/60 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1 font-medium text-muted-foreground">
-                    <Timer className="h-3.5 w-3.5" /> Focus Timer
-                  </span>
-                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 px-1.5 py-0.5 rounded-full">
-                    Recommended: 25m
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-normal">
-                  Engage in a Pomodoro focus session to boost retention and sync
-                  results with your score.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Gamification, Challenges & Leaderboard Dashboard widgets */}
-          <Card className="border-border">
-            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-              <SectionHeader title="Level & XP Progression" className="mb-0" />
-              <Button
-                variant="ghost"
-                size="xs"
-                className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
-                onClick={() => router.push('/achievements')}
-              >
-                Milestones
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-1 text-xs">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 font-extrabold text-lg">
-                  {level}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-foreground">
-                    Level {level}: {title}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {xp} total XP. {1000 - (xp % 1000)} XP to next level
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
-                  <span>LEVEL PROGRESS</span>
-                  <span>{progressPercent}%</span>
-                </div>
-                <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Daily & Weekly Challenges Checklist */}
-          <Card className="border-border">
-            <CardHeader className="pb-2">
-              <SectionHeader title="Active Challenges" className="mb-0" />
+              <SectionHeader
+                title="Dashboard Layout Controls"
+                className="mb-0"
+              />
             </CardHeader>
             <CardContent className="space-y-3.5 pt-1 text-xs">
-              {/* Daily */}
-              <div className="space-y-2">
-                <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
-                  Daily Challenge
-                </p>
-                {dailyChallenges.slice(0, 2).map((c) => (
-                  <div key={c.id} className="space-y-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">
-                        {c.description}
-                      </span>
-                      <span className="font-bold text-foreground">
-                        {c.currentCount}/{c.targetCount}
-                      </span>
-                    </div>
-                    <div className="h-1 w-full bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-amber-500 rounded-full"
-                        style={{
-                          width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-muted-foreground">
+                  View Layout Mode
+                </span>
+                <div className="flex border border-border rounded overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('EXPANDED')}
+                    className={`px-2.5 py-1 font-bold transition-colors ${
+                      dashboardPrefs.viewMode === 'EXPANDED'
+                        ? 'bg-purple-600/15 text-purple-700 dark:text-purple-400 font-extrabold'
+                        : 'text-muted-foreground hover:bg-muted/10'
+                    }`}
+                  >
+                    Expanded
+                  </button>
+                  <button
+                    onClick={() => setViewMode('COMPACT')}
+                    className={`px-2.5 py-1 font-bold transition-colors ${
+                      dashboardPrefs.viewMode === 'COMPACT'
+                        ? 'bg-purple-600/15 text-purple-700 dark:text-purple-400 font-extrabold'
+                        : 'text-muted-foreground hover:bg-muted/10'
+                    }`}
+                  >
+                    Compact
+                  </button>
+                </div>
               </div>
 
-              {/* Weekly */}
+              {/* Hide/Show switches */}
               <div className="space-y-2 border-t border-border/40 pt-3">
                 <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
-                  Weekly Challenge
+                  Toggle Widgets Visibility
                 </p>
-                {weeklyChallenges.slice(0, 2).map((c) => (
-                  <div key={c.id} className="space-y-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">
-                        {c.description}
-                      </span>
-                      <span className="font-bold text-foreground">
-                        {c.currentCount}/{c.targetCount}
-                      </span>
-                    </div>
-                    <div className="h-1 w-full bg-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full"
-                        style={{
-                          width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-muted-foreground">
+                  {[
+                    { id: 'AI_STUDY_GUIDE', label: 'AI Study Guide' },
+                    { id: 'PLANNER_SNAPSHOT', label: 'Planner Snapshot' },
+                    { id: 'GAMIFICATION_SUMMARY', label: 'XP Progression' },
+                    { id: 'PRODUCTIVITY_TIMER', label: 'Pomodoro Timer' },
+                    { id: 'WELLNESS_STATUS', label: 'Wellness Tracker' },
+                  ].map((w) => {
+                    const isVisible = !dashboardPrefs.hiddenWidgets.includes(
+                      w.id
+                    );
+                    return (
+                      <button
+                        key={w.id}
+                        onClick={() => toggleWidgetVisibility(w.id)}
+                        className={`px-2 py-1.5 border rounded-md text-left truncate transition-colors ${
+                          isVisible
+                            ? 'border-purple-600/20 bg-purple-500/5 text-purple-600'
+                            : 'border-border bg-card'
+                        }`}
+                      >
+                        {isVisible ? '✓' : '✗'} {w.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* Study Wellness status summary card */}
+          {!dashboardPrefs.hiddenWidgets.includes('WELLNESS_STATUS') && (
+            <Card className="border border-border bg-gradient-to-br from-rose-500/5 to-transparent">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <SectionHeader
+                  title="Study Wellness Tracker"
+                  className="mb-0"
+                />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-xs text-rose-600 p-0 hover:bg-transparent"
+                  onClick={() => router.push('/wellness')}
+                >
+                  Log Mood
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-1 text-xs">
+                <div className="flex justify-between items-center bg-card/60 p-2.5 border border-border/60 rounded-lg">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1">
+                    <Heart className="h-4 w-4 text-rose-500" /> Focus Mood State
+                  </span>
+                  <span className="text-[10px] text-rose-600 font-extrabold bg-rose-500/10 px-2 py-0.5 rounded-full">
+                    Balanced
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-normal">
+                  Track cognitive load fatigue, sleep hours, and get offline
+                  recommendations to prevent burnout.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Streak & Burnout Widget */}
+          {!dashboardPrefs.hiddenWidgets.includes('PRODUCTIVITY_TIMER') && (
+            <Card className="border-border bg-gradient-to-br from-amber-500/5 to-transparent">
+              <CardHeader className="pb-2">
+                <SectionHeader title="Streak & Consistency" className="mb-0" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <Flame className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">
+                      {!isEmptyState
+                        ? `${streakCount} Days Active`
+                        : '0 Days Active'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {!isEmptyState
+                        ? 'Keep studying daily to maintain your streak!'
+                        : 'Complete a study session to initialize streak.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Focus Session Timer Widget */}
+                <div className="p-3 rounded-lg border border-border bg-card/60 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1 font-bold text-foreground">
+                      <Timer className="h-4 w-4 text-purple-600 animate-pulse" />{' '}
+                      Focus Pomodoro Timer
+                    </span>
+                    <span className="text-[9px] text-purple-600 dark:text-purple-400 font-extrabold bg-purple-500/10 px-1.5 py-0.5 rounded-full uppercase">
+                      {pomodoroMode}
+                    </span>
+                  </div>
+
+                  {/* Timer Display */}
+                  <div className="text-center py-1">
+                    <p className="text-3xl font-extrabold text-foreground tracking-wider">
+                      {String(pomodoroMin).padStart(2, '0')}:
+                      {String(pomodoroSec).padStart(2, '0')}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground mt-0.5 font-bold uppercase">
+                      Sessions Completed: {pomodoroCompleted}
+                    </p>
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={() => pomodoroSetMode('WORK')}
+                      className={`px-2 py-1 rounded text-[8px] font-extrabold uppercase border ${
+                        pomodoroMode === 'WORK'
+                          ? 'border-purple-600 text-purple-600 bg-purple-500/5'
+                          : 'border-border text-muted-foreground'
+                      }`}
+                    >
+                      Work
+                    </button>
+                    <button
+                      onClick={() => pomodoroSetMode('SHORT_BREAK')}
+                      className={`px-2 py-1 rounded text-[8px] font-extrabold uppercase border ${
+                        pomodoroMode === 'SHORT_BREAK'
+                          ? 'border-purple-600 text-purple-600 bg-purple-500/5'
+                          : 'border-border text-muted-foreground'
+                      }`}
+                    >
+                      Break
+                    </button>
+                  </div>
+
+                  <div className="flex gap-1.5 justify-center pt-1">
+                    {pomodoroRunning ? (
+                      <button
+                        onClick={pomodoroPause}
+                        className="px-3 py-1 rounded bg-amber-500 text-white font-bold text-[10px] w-full"
+                      >
+                        Pause
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pomodoroStart}
+                        className="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] w-full"
+                      >
+                        Start Focus
+                      </button>
+                    )}
+                    <button
+                      onClick={pomodoroReset}
+                      className="px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground font-bold text-[10px]"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Gamification, Challenges & Leaderboard Dashboard widgets */}
+          {!dashboardPrefs.hiddenWidgets.includes('GAMIFICATION_SUMMARY') && (
+            <Card className="border-border">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <SectionHeader
+                  title="Level & XP Progression"
+                  className="mb-0"
+                />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
+                  onClick={() => router.push('/achievements')}
+                >
+                  Milestones
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-1 text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600/10 text-purple-600 dark:text-purple-400 font-extrabold text-lg">
+                    {level}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-foreground">
+                      Level {level}: {title}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {xp} total XP. {1000 - (xp % 1000)} XP to next level
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-semibold">
+                    <span>LEVEL PROGRESS</span>
+                    <span>{progressPercent}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Daily */}
+                <div className="space-y-2">
+                  <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                    Daily Challenge
+                  </p>
+                  {dailyChallenges.slice(0, 2).map((c) => (
+                    <div key={c.id} className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">
+                          {c.description}
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {c.currentCount}/{c.targetCount}
+                        </span>
+                      </div>
+                      <div className="h-1 w-full bg-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-600 rounded-full"
+                          style={{
+                            width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Weekly */}
+                <div className="space-y-2 border-t border-border/40 pt-3">
+                  <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                    Weekly Challenge
+                  </p>
+                  {weeklyChallenges.slice(0, 2).map((c) => (
+                    <div key={c.id} className="space-y-1">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-muted-foreground">
+                          {c.description}
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {c.currentCount}/{c.targetCount}
+                        </span>
+                      </div>
+                      <div className="h-1 w-full bg-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{
+                            width: `${Math.round((c.currentCount / c.targetCount) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Mock Leaderboard Preview widget */}
           <Card className="border-border">

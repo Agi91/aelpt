@@ -40,3 +40,5 @@ export * from './src/utils/analytics-engine';
 export * from './src/types/planner.types';
 export * from './src/schemas/planner.schema';
 export * from './src/utils/planner-engine';
+export * from './src/types/wellness.types';
+export * from './src/schemas/wellness.schema';
