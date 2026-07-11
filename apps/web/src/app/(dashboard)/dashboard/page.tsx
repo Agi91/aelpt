@@ -34,6 +34,7 @@ import {
 import { useAcademicMockStore } from '@/store/useAcademicMockStore';
 import { useProgressMockStore } from '@/store/useProgressMockStore';
 import { useFlashcardMockStore } from '@/store/useFlashcardMockStore';
+import { useRecommendationMockStore } from '@/store/useRecommendationMockStore';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const { streakCount, dailyActivities, activityLogs, achievements } =
     useProgressMockStore();
   const { flashcards } = useFlashcardMockStore();
+  const { suggestions, dailyPlan } = useRecommendationMockStore();
 
   const dueCount = flashcards.filter(
     (c) => new Date(c.nextReviewDate) <= new Date() || c.reps === 0
@@ -387,6 +389,60 @@ export default function DashboardPage() {
 
         {/* RIGHT COLUMN: Quick Actions & Widgets */}
         <div className="space-y-6">
+          {/* AI Study Guide Recommendations */}
+          <Card className="border-border bg-gradient-to-br from-purple-500/5 to-transparent">
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+              <SectionHeader title="AI Study Guide" className="mb-0" />
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-xs text-purple-600 dark:text-purple-400 p-0 hover:bg-transparent"
+                onClick={() => router.push(ROUTES.RECOMMENDATIONS)}
+              >
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3 pt-1 text-xs">
+              {dailyPlan && dailyPlan.dailyGoals.length > 0 ? (
+                <>
+                  <div className="p-2.5 rounded-lg border border-purple-500/20 bg-purple-500/5 space-y-1.5">
+                    <p className="font-bold text-[10px] text-purple-600 dark:text-purple-400 uppercase tracking-wide">
+                      Recommended Next Task
+                    </p>
+                    <p className="font-semibold text-foreground leading-normal">
+                      {suggestions[0]?.title || 'Study your weak courses'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {suggestions[0]?.description ||
+                        'Complete syllabus mapping.'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-wide">
+                      {"Today's Study Plan"} ({dailyPlan.estimatedMinutes} mins)
+                    </p>
+                    {dailyPlan.dailyGoals.slice(0, 3).map((goal, idx) => (
+                      <div
+                        key={idx}
+                        className="flex gap-2 items-center text-muted-foreground leading-normal"
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-600 shrink-0" />
+                        <span className="truncate">{goal}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={<Sparkles className="h-6 w-6 text-purple-600" />}
+                  title="No active recommendations"
+                  description="Complete learning materials or take a quiz to get recommendations."
+                  className="py-6"
+                />
+              )}
+            </CardContent>
+          </Card>
+
           {/* Quick Actions Panel */}
           <Card className="border-border">
             <CardHeader className="pb-2">

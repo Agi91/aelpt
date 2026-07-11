@@ -38,6 +38,7 @@ export const ROUTES = {
 
   // AI Features
   AI_MENTOR: '/ai-mentor',
+  RECOMMENDATIONS: '/recommendations',
 
   // Analytics & Gamification
   ANALYTICS: '/analytics',
@@ -70,6 +71,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Interactive Quiz', href: ROUTES.QUIZ, iconName: 'HelpCircle' },
   { label: 'Semantic Search', href: ROUTES.SEARCH, iconName: 'Search' },
   { label: 'AI Mentor', href: ROUTES.AI_MENTOR, iconName: 'Sparkles' },
+  {
+    label: 'AI Study Guide',
+    href: ROUTES.RECOMMENDATIONS,
+    iconName: 'TrendingUp',
+  },
   { label: 'Analytics', href: ROUTES.ANALYTICS, iconName: 'BarChart2' },
   { label: 'Achievements', href: ROUTES.ACHIEVEMENTS, iconName: 'Trophy' },
   { label: 'Planner', href: ROUTES.PLANNER, iconName: 'Calendar' },

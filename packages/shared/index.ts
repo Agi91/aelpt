@@ -28,3 +28,6 @@ export * from './src/utils/vector-search-service';
 export * from './src/types/quiz.types';
 export * from './src/schemas/quiz.schema';
 export * from './src/utils/quiz-generator';
+export * from './src/types/recommendation.types';
+export * from './src/schemas/recommendation.schema';
+export * from './src/utils/recommendation-engine';
